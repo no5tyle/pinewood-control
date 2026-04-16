@@ -641,7 +641,7 @@ label {
 }
 
 .theme-swatch[data-theme="scouts-au-cubs"] {
-  background: linear-gradient(90deg, #f1f5f9 0%, #f1f5f9 60%, #f9b233 60%, #f9b233 100%);
+  background: linear-gradient(90deg, #1c4270 0%, #1c4270 60%, #f9b233 60%, #f9b233 100%);
 }
 
 .theme-swatch[data-theme="scouts-america"] {

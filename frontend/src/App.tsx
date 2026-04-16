@@ -767,7 +767,7 @@ function ConfigurePage() {
               >
                 <div className="theme-swatch" data-theme="system" />
                 <div className="theme-title">System</div>
-                <div className="theme-subtitle">Matches light/dark</div>
+                <div className="theme-subtitle">System</div>
               </button>
               <button
                 type="button"
@@ -781,7 +781,7 @@ function ConfigurePage() {
               >
                 <div className="theme-swatch" data-theme="scouts-au-cubs" />
                 <div className="theme-title">Cubs Australia</div>
-                <div className="theme-subtitle">Scouts Australia</div>
+                <div className="theme-subtitle">Cubs Australia</div>
               </button>
               <button
                 type="button"
@@ -795,7 +795,7 @@ function ConfigurePage() {
               >
                 <div className="theme-swatch" data-theme="scouts-america" />
                 <div className="theme-title">BSA</div>
-                <div className="theme-subtitle">BSA styling</div>
+                <div className="theme-subtitle">BSA</div>
               </button>
             </div>
           </>
