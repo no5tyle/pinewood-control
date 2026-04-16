@@ -102,6 +102,7 @@ const guestAccessUrlStorageKey = "pinewood_guest_access_urls";
 const quickStartDismissedStorageKey = "pinewood_quickstart_dismissed_v1";
 const guestClaimStatusEventName = "pinewood:guest-events-claim-status";
 const quickStartOpenEventName = "pinewood:quickstart-open";
+const donateOpenEventName = "pinewood:donate-open";
 type ThemeName = "system" | "scouts-au-cubs" | "scouts-america";
 
 function safeParseStorageJSON<T>(value: string | null, fallback: T): T {
@@ -375,6 +376,39 @@ function QuickStartOverlay() {
   );
 }
 
+function DonateOverlay() {
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(donateOpenEventName, onOpen);
+    return () => window.removeEventListener(donateOpenEventName, onOpen);
+  }, []);
+
+  if (!open) return null;
+
+  const close = () => setOpen(false);
+
+  return (
+    <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Support Pinewood Controller">
+      <section className="card quickstart-card">
+        <button className="close-overlay" onClick={close} aria-label="Close">×</button>
+        <h2 style={{ margin: 0 }}>Support this project</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Donations are used to cover server hosting and, beyond that, other scouting-related things.
+        </p>
+        <div className="quickstart-actions">
+          <a className="secondary-btn" href="https://ko-fi.com/nostyle" target="_blank" rel="noreferrer">
+            Open Ko-fi
+          </a>
+          <div style={{ flex: 1 }} />
+          <button onClick={close}>Close</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function HelpPage() {
   return (
     <main className="home-page">
@@ -571,6 +605,15 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
         >
           <span className="profile-icon" aria-hidden="true">?</span>
           <span>Help</span>
+        </button>
+        <button
+          type="button"
+          className="profile-btn"
+          aria-label="Donate"
+          onClick={() => window.dispatchEvent(new Event(donateOpenEventName))}
+        >
+          <span className="profile-icon" aria-hidden="true">♥</span>
+          <span>Donate</span>
         </button>
         {user ? (
           <div className="user-nav">
@@ -2369,6 +2412,7 @@ export default function App() {
         <ClaimLocalGuestEventsOnAuth />
         <PageTitle />
         <QuickStartOverlay />
+        <DonateOverlay />
         <Routes>
           <Route path="/" element={<KioskBootPage />} />
           <Route path="/help" element={<HelpPage />} />
