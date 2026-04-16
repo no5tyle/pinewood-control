@@ -19,6 +19,8 @@ type Scout = {
   id: string;
   name: string;
   carNumber: string;
+  groupName?: string | null;
+  weight?: number | null;
   points: number;
   eliminated: boolean;
 };
@@ -36,6 +38,7 @@ type EventState = {
   lanes: number;
   setupComplete: boolean;
   theme: string;
+  weightUnit?: "g" | "oz";
   isGuest: boolean;
   scouts: Scout[];
   heats: Heat[];
@@ -664,6 +667,7 @@ function ConfigurePage() {
   const [pointLimit, setPointLimit] = useState<string>("10");
   const [lanes, setLanes] = useState<string>("4");
   const [theme, setTheme] = useState<ThemeName>("system");
+  const [weightUnit, setWeightUnit] = useState<"g" | "oz">("g");
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
 
@@ -684,6 +688,7 @@ function ConfigurePage() {
         setPointLimit(String(e.pointLimit));
         setLanes(String(e.lanes));
         setTheme(e.theme as ThemeName);
+        setWeightUnit(e.weightUnit === "oz" ? "oz" : "g");
       })
       .catch((err: Error) => setError(err.message));
   }, [token, navigate]);
@@ -720,7 +725,7 @@ function ConfigurePage() {
 
       await api<EventState>(`/events/${session.eventId}`, {
         method: "PATCH",
-        body: JSON.stringify({ pointLimit: pointLimitNum, lanes: lanesNum, theme }),
+        body: JSON.stringify({ pointLimit: pointLimitNum, lanes: lanesNum, theme, weightUnit }),
       });
       navigate(`/events/${session.eventId}/scouts`);
     } catch (err) {
@@ -767,6 +772,23 @@ function ConfigurePage() {
           <>
             <h2>Tournament Theme</h2>
             <p className="muted">Select a theme to continue.</p>
+            <div className="unit-toggle">
+              <button
+                type="button"
+                className={`secondary-btn ${weightUnit === "g" ? "active" : ""}`}
+                onClick={() => setWeightUnit("g")}
+              >
+                grams
+              </button>
+              <button
+                type="button"
+                className={`secondary-btn ${weightUnit === "oz" ? "active" : ""}`}
+                onClick={() => setWeightUnit("oz")}
+              >
+                ounces
+              </button>
+              <span className="muted">Weight unit</span>
+            </div>
             <div className="theme-grid">
               <button
                 type="button"
@@ -850,19 +872,26 @@ function AddScoutsPage() {
   const { eventId } = useParams();
   const { event, error: eventError } = useEvent(eventId);
   const [scoutName, setScoutName] = useState("");
-  const [carNumber, setCarNumber] = useState("");
+  const [groupName, setGroupName] = useState("");
+  const [weight, setWeight] = useState("");
   const [error, setError] = useState("");
 
   const addScout = async (e: FormEvent) => {
     e.preventDefault();
     if (!eventId) return;
     try {
+      const weightValue = weight.trim().length > 0 ? Number(weight) : undefined;
       await api(`/events/${eventId}/scouts`, {
         method: "POST",
-        body: JSON.stringify({ name: scoutName, carNumber }),
+        body: JSON.stringify({
+          name: scoutName,
+          groupName: groupName.trim().length > 0 ? groupName.trim() : undefined,
+          weight: Number.isFinite(weightValue as number) ? weightValue : undefined,
+        }),
       });
       setScoutName("");
-      setCarNumber("");
+      setGroupName("");
+      setWeight("");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -893,7 +922,8 @@ function AddScoutsPage() {
       <form className="card" onSubmit={addScout}>
         <h2>Add Racer</h2>
         <label>Racer<input value={scoutName} onChange={(e) => setScoutName(e.target.value)} required /></label>
-        <label>Car number<input value={carNumber} onChange={(e) => setCarNumber(e.target.value)} required /></label>
+        <label>Group / Patrol / Den (optional)<input value={groupName} onChange={(e) => setGroupName(e.target.value)} /></label>
+        <label>Weight ({event.weightUnit === "oz" ? "oz" : "g"}) (optional)<input type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} /></label>
         <button type="submit">Add contestant</button>
       </form>
 
@@ -902,8 +932,13 @@ function AddScoutsPage() {
         <ul className="standings">
           {event.scouts.map((s) => (
             <li key={s.id}>
-              <span>{s.name}</span>
-              <span>#{s.carNumber}</span>
+              <span>
+                <strong>#{s.carNumber}</strong> {s.name}
+                {s.groupName ? <span className="muted"> ({s.groupName})</span> : null}
+                {typeof s.weight === "number" ? (
+                  <span className="muted"> • {s.weight}{event.weightUnit === "oz" ? "oz" : "g"}</span>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
@@ -1034,7 +1069,8 @@ function RaceControlPage() {
                 <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
                   {finishOrder.map((scoutId, index) => (
                     <li key={`${scoutId}-${index}`} style={{ margin: "0.35rem 0" }}>
-                      {ordinal(index + 1)}: {scoutById.get(scoutId)?.name}
+                      {ordinal(index + 1)}: <strong>#{scoutById.get(scoutId)?.carNumber}</strong> {scoutById.get(scoutId)?.name}
+                      {scoutById.get(scoutId)?.groupName ? <span className="muted"> ({scoutById.get(scoutId)?.groupName})</span> : null}
                     </li>
                   ))}
                 </ol>
@@ -1043,7 +1079,11 @@ function RaceControlPage() {
             <div className="stack">
               {remainingFinishers.map((scoutId) => (
                 <button key={scoutId} onClick={() => selectFinisher(scoutId)}>
-                  {scoutById.get(scoutId)?.name}
+                  <span className="scout-pick">
+                    <span className="scout-pick-number">#{scoutById.get(scoutId)?.carNumber}</span>
+                    <span className="scout-pick-name">{scoutById.get(scoutId)?.name}</span>
+                    {scoutById.get(scoutId)?.groupName ? <span className="scout-pick-group">({scoutById.get(scoutId)?.groupName})</span> : null}
+                  </span>
                 </button>
               ))}
             </div>
@@ -1064,7 +1104,7 @@ function RaceControlPage() {
         <ul className="standings">
           {event.standings.map((s) => (
             <li key={s.id} className={s.eliminated ? "eliminated" : ""}>
-              <span>{s.name}</span>
+              <span><strong>#{s.carNumber}</strong> {s.name}{s.groupName ? <span className="muted"> ({s.groupName})</span> : null}</span>
               <span>{s.eliminated ? "Out" : `${s.points} point${s.points === 1 ? "" : "s"}`}</span>
             </li>
           ))}
@@ -1328,7 +1368,10 @@ function KioskPage() {
                 <div className="kiosk-final-hero">
                   <div className="kiosk-final-title">Final Standings</div>
                   <div className="kiosk-final-winner">
-                    Champion: <span className="kiosk-final-winner-name">{scoutMap.get(event.championScoutId)?.name}</span>
+                    Champion:{" "}
+                    <span className="kiosk-final-winner-name">
+                      #{scoutMap.get(event.championScoutId)?.carNumber} {scoutMap.get(event.championScoutId)?.name}
+                    </span>
                   </div>
                 </div>
                 <div className="kiosk-final-standings">
@@ -1338,7 +1381,7 @@ function KioskPage() {
                       className={`kiosk-final-row ${index < 3 ? `rank-${index + 1}` : ""}`}
                     >
                       <span className="kiosk-final-rank">{index + 1}</span>
-                      <span className="kiosk-final-name">{scout.name}</span>
+                      <span className="kiosk-final-name">#{scout.carNumber} {scout.name}{scout.groupName ? ` (${scout.groupName})` : ""}</span>
                     </div>
                   ))}
                 </div>
@@ -1349,7 +1392,7 @@ function KioskPage() {
                   {showWinnerOverlay && previousWinner ? (
                     <div className="kiosk-heat-winner">
                       <div className="winner-label">Heat Winner</div>
-                      <div className="winner-name-large">{previousWinner.name}</div>
+                      <div className="winner-name-large">#{previousWinner.carNumber} {previousWinner.name}</div>
                       <div className="winner-sub">Readying next heat...</div>
                     </div>
                   ) : (
@@ -1360,7 +1403,10 @@ function KioskPage() {
                         {currentHeat?.laneAssignments.map((scoutId, laneIndex) => (
                           <div key={scoutId} className="heat-lane">
                             <span className="lane-number">Lane {laneIndex + 1}</span>
-                            <span className="lane-scout">{scoutMap.get(scoutId)?.name}</span>
+                            <span className="lane-scout">
+                              #{scoutMap.get(scoutId)?.carNumber} {scoutMap.get(scoutId)?.name}
+                              {scoutMap.get(scoutId)?.groupName ? <span className="muted"> ({scoutMap.get(scoutId)?.groupName})</span> : null}
+                            </span>
                           </div>
                         ))}
                       </div>
@@ -1373,7 +1419,7 @@ function KioskPage() {
                     {event.standings.map((scout, index) => (
                       <div key={scout.id} className={`kiosk-standing-item ${scout.eliminated ? "eliminated" : ""}`}>
                         <span className="standing-rank">#{index + 1}</span>
-                        <span className="standing-name">{scout.name}</span>
+                        <span className="standing-name">#{scout.carNumber} {scout.name}{scout.groupName ? ` (${scout.groupName})` : ""}</span>
                         <span className="standing-status">
                         {scout.eliminated ? "Out" : `${scout.points} point${scout.points === 1 ? "" : "s"}`}
                         </span>

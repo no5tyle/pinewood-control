@@ -131,6 +131,27 @@ input {
   font: inherit;
 }
 
+.scout-pick {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.scout-pick-number {
+  font-family: monospace;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.scout-pick-name {
+  font-weight: 700;
+}
+
+.scout-pick-group {
+  color: var(--muted);
+  font-weight: 600;
+}
+
 button {
   border: none;
   border-radius: 0.25rem;
@@ -655,6 +676,18 @@ label {
 .theme-subtitle {
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.unit-toggle {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.unit-toggle .secondary-btn.active {
+  border-color: var(--button-bg);
+  color: var(--button-bg);
 }
 
 .kiosk-pair-only {
