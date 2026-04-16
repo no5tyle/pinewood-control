@@ -175,6 +175,9 @@ function getQrPrefix(): string {
   if (envPrefix && envPrefix.trim().length > 0) return envPrefix.trim().replace(/\/+$/, "");
   const filePrefix = appConfig.qrPrefix?.trim();
   if (filePrefix) return filePrefix.replace(/\/+$/, "");
+  if (window.location.hostname === "nostyle.app" || window.location.hostname === "www.nostyle.app") {
+    return "https://pinewood.nostyle.app";
+  }
   return window.location.origin;
 }
 
