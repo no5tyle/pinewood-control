@@ -5,6 +5,9 @@
   It is intentionally small and side-effect free so it can be reused in tests.
 */
 export const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+if (process.env.NODE_ENV === "production" && JWT_SECRET === "your-secret-key") {
+  throw new Error("JWT_SECRET must be set in production");
+}
 
 const corsOrigin = (process.env.CORS_ORIGIN ?? "").trim();
 export const corsOrigins = corsOrigin.length > 0
