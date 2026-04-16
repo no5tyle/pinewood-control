@@ -84,6 +84,7 @@ const guestEventStorageKey = "pinewood_guest_event_ids";
 const guestAccessUrlStorageKey = "pinewood_guest_access_urls";
 const quickStartDismissedStorageKey = "pinewood_quickstart_dismissed_v1";
 const guestClaimStatusEventName = "pinewood:guest-events-claim-status";
+const quickStartOpenEventName = "pinewood:quickstart-open";
 type ThemeName = "system" | "scouts-au-cubs" | "scouts-america";
 
 function safeParseStorageJSON<T>(value: string | null, fallback: T): T {
@@ -315,11 +316,18 @@ function QuickStartOverlay() {
   useEffect(() => {
     const dismissed = window.localStorage.getItem(quickStartDismissedStorageKey);
     if (dismissed === "1") return;
-    setOpen(true);
+    if (location.pathname === "/" || location.pathname === "/events") {
+      setOpen(true);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(quickStartOpenEventName, onOpen);
+    return () => window.removeEventListener(quickStartOpenEventName, onOpen);
   }, []);
 
   if (!open) return null;
-  if (!(location.pathname === "/" || location.pathname === "/events")) return null;
 
   const close = () => {
     window.localStorage.setItem(quickStartDismissedStorageKey, "1");
@@ -341,7 +349,7 @@ function QuickStartOverlay() {
           <li>Add racers, generate heats, then submit the full finish order after each race.</li>
         </ol>
         <div className="quickstart-actions">
-          <button className="secondary-btn" onClick={() => { close(); navigate("/help"); }}>Help</button>
+          <button className="secondary-btn" onClick={() => { close(); navigate("/help"); }}>More</button>
           <div style={{ flex: 1 }} />
           <button onClick={close}>Get Started</button>
         </div>
@@ -538,10 +546,15 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
           <span className="profile-icon" aria-hidden="true">🏆</span>
           <span>Events</span>
         </Link>
-        <Link to="/help" className="profile-btn" aria-label="Help">
+        <button
+          type="button"
+          className="profile-btn"
+          aria-label="Help"
+          onClick={() => window.dispatchEvent(new Event(quickStartOpenEventName))}
+        >
           <span className="profile-icon" aria-hidden="true">?</span>
           <span>Help</span>
-        </Link>
+        </button>
         {user ? (
           <div className="user-nav">
             <span className="user-name">{user.name || user.email}</span>
