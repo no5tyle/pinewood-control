@@ -397,10 +397,13 @@ function DonateOverlay() {
         <p className="muted" style={{ margin: 0 }}>
           Donations are used to cover server hosting and, beyond that, other scouting-related things.
         </p>
-        <div className="quickstart-actions">
-          <a className="secondary-btn" href="https://ko-fi.com/nostyle" target="_blank" rel="noreferrer">
-            Open Ko-fi
+        <div className="donate-link-card">
+          <div className="donate-link-title">ko-fi.com/nostyle</div>
+          <a className="donate-link-btn" href="https://ko-fi.com/nostyle" target="_blank" rel="noreferrer">
+            Donate on Ko-fi
           </a>
+        </div>
+        <div className="quickstart-actions">
           <div style={{ flex: 1 }} />
           <button onClick={close}>Close</button>
         </div>
@@ -583,6 +586,14 @@ function SignupPage() {
 
 function AppHeader({ onRelink }: { onRelink?: () => void }) {
   const { user, logout } = useAuth();
+  const TrophyIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M6 2h12v2h3v4c0 3.3-2.7 6-6 6h-.2A6.02 6.02 0 0 1 13 15.66V18h4v2H7v-2h4v-2.34A6.02 6.02 0 0 1 9.2 14H9c-3.3 0-6-2.7-6-6V4h3V2Zm2 2v7c0 2.2 1.8 4 4 4s4-1.8 4-4V4H8Zm11 2h-1v5.1c1.2-.6 2-1.9 2-3.4V6ZM6 11.1V6H5v1.7c0 1.5.8 2.8 2 3.4Z"
+      />
+    </svg>
+  );
   return (
     <header className="app-header">
       <Link to="/" className="app-brand">Pinewood Control</Link>
@@ -594,7 +605,7 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
           </button>
         ) : null}
         <Link to="/events" className="profile-btn" aria-label="View events">
-          <span className="profile-icon" aria-hidden="true">🏆</span>
+          <span className="profile-icon" aria-hidden="true"><TrophyIcon /></span>
           <span>Events</span>
         </Link>
         <button

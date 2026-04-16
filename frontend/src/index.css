@@ -262,6 +262,12 @@ input {
   line-height: 1;
 }
 
+.profile-icon svg {
+  width: 0.72rem;
+  height: 0.72rem;
+  display: block;
+}
+
 .home-page h1,
 .operator-header h1 {
   font-size: 1.5rem;
@@ -585,6 +591,37 @@ label {
   display: flex;
   gap: 0.75rem;
   align-items: center;
+}
+
+.donate-link-card {
+  border: 2px solid var(--card-border);
+  border-radius: 0.6rem;
+  padding: 0.9rem;
+  background: var(--bg-soft);
+  display: grid;
+  gap: 0.6rem;
+}
+
+.donate-link-title {
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 0.02em;
+}
+
+.donate-link-btn {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.6rem 0.9rem;
+  border-radius: 0.5rem;
+  background: var(--button-bg);
+  color: var(--button-text);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.donate-link-btn:hover {
+  filter: brightness(1.05);
 }
 
 .modal-overlay {
