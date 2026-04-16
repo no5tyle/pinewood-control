@@ -477,11 +477,50 @@ function HelpPage() {
         <h2>How Matchups Are Made</h2>
         <ul style={{ margin: 0, paddingLeft: "1.25rem", display: "grid", gap: "0.5rem" }}>
           <li>The system only generates heats when there are at least 2 non-eliminated racers available.</li>
-          <li>It prioritizes lane fairness so racers get a balanced distribution of lanes over time.</li>
-          <li>It groups racers with similar points where possible (to keep heats competitive).</li>
-          <li>It tries to minimize repeat matchups between the same racers.</li>
+          <li>Primary goal: keep “heats raced” balanced so nobody races twice before everyone has raced once (where possible).</li>
+          <li>It prefers matchups where racers face new opponents (avoiding repeat pairings when possible).</li>
+          <li>It also tries to keep lane assignments fair over time.</li>
           <li>If it cannot generate a valid heat with the remaining racers, it will refuse rather than create a single-car heat.</li>
         </ul>
+        <details style={{ marginTop: "0.5rem" }}>
+          <summary>Matchmaking details (expand)</summary>
+          <div style={{ display: "grid", gap: "0.75rem", marginTop: "0.75rem" }}>
+            <div>
+              <div style={{ fontWeight: 800 }}>1) Heat participation balance (highest priority)</div>
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.25rem", display: "grid", gap: "0.35rem" }}>
+                <li>Each racer tracks how many heats they’ve run so far.</li>
+                <li>The next heat is built primarily from racers with the lowest heat count, so everyone gets a turn before anyone repeats (when possible).</li>
+                <li>This can intentionally create heats with empty lanes to keep participation fair.</li>
+                <li>Example: with 6 racers on a 4-lane track, it will prefer two 3-racer heats (3 + 3) rather than a 4 + 2 that forces repeats sooner.</li>
+              </ul>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800 }}>2) Opponent variety (next priority)</div>
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.25rem", display: "grid", gap: "0.35rem" }}>
+                <li>After participation is balanced, it prefers heats where racers haven’t faced each other yet.</li>
+                <li>It tries to avoid repeating the same pairings until necessary.</li>
+              </ul>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800 }}>3) Lane fairness</div>
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.25rem", display: "grid", gap: "0.35rem" }}>
+                <li>Within the chosen group, it assigns lanes to reduce how often each racer repeats the same lane.</li>
+              </ul>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800 }}>4) Competitiveness (points)</div>
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.25rem", display: "grid", gap: "0.35rem" }}>
+                <li>As a final tie-breaker, it prefers racers with closer points to keep heats competitive.</li>
+              </ul>
+            </div>
+            <div>
+              <div style={{ fontWeight: 800 }}>What it will never do</div>
+              <ul style={{ margin: "0.35rem 0 0", paddingLeft: "1.25rem", display: "grid", gap: "0.35rem" }}>
+                <li>It won’t generate a heat with fewer than 2 active racers.</li>
+              </ul>
+            </div>
+          </div>
+        </details>
       </section>
 
       <section className="card">
