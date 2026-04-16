@@ -83,6 +83,7 @@ const kioskSessionStorageKey = "pinewood_kiosk_session";
 const guestEventStorageKey = "pinewood_guest_event_ids";
 const guestAccessUrlStorageKey = "pinewood_guest_access_urls";
 const quickStartDismissedStorageKey = "pinewood_quickstart_dismissed_v1";
+const guestClaimStatusEventName = "pinewood:guest-events-claim-status";
 type ThemeName = "system" | "scouts-au-cubs" | "scouts-green" | "scouts-joeys" | "scouts-america";
 
 function safeParseStorageJSON<T>(value: string | null, fallback: T): T {
@@ -143,30 +144,61 @@ function isAuthRequiredError(message: string): boolean {
 
 function ClaimLocalGuestEventsOnAuth() {
   const { user } = useAuth();
-  const lastClaimedForUser = useRef<string | null>(null);
+  const attemptRef = useRef(0);
+  const timeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const userId = user?.id ?? null;
     if (!userId) return;
-    if (lastClaimedForUser.current === userId) return;
-    lastClaimedForUser.current = userId;
 
-    const ids = getLocalGuestEventIds();
-    if (ids.length === 0) return;
+    attemptRef.current = 0;
+    if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
 
-    Promise.allSettled(ids.map((eventId) => api(`/events/${eventId}/claim`, { method: "POST" })))
-      .then((results) => {
-        const remaining: string[] = [];
-        results.forEach((r, idx) => {
-          if (r.status === "fulfilled") return;
-          const message = (r.reason as Error | undefined)?.message ?? "";
-          if (message.includes("Event not found") || message.includes("Event already claimed") || isAuthRequiredError(message)) return;
-          remaining.push(ids[idx]);
-        });
-        setLocalGuestEventIds(remaining);
+    const claimOnce = async () => {
+      const ids = getLocalGuestEventIds();
+      if (ids.length === 0) return;
+
+      window.dispatchEvent(
+        new CustomEvent(guestClaimStatusEventName, { detail: { inProgress: true, remaining: ids.length } })
+      );
+
+      const results = await Promise.allSettled(ids.map((eventId) => api(`/events/${eventId}/claim`, { method: "POST" })));
+      const remaining: string[] = [];
+      let succeeded = 0;
+      results.forEach((r, idx) => {
+        if (r.status === "fulfilled") {
+          succeeded += 1;
+          return;
+        }
+        const message = (r.reason as Error | undefined)?.message ?? "";
+        if (message.includes("Event not found") || message.includes("Event already claimed") || isAuthRequiredError(message)) return;
+        remaining.push(ids[idx]);
+      });
+
+      setLocalGuestEventIds(remaining);
+      if (succeeded > 0) {
         window.dispatchEvent(new Event("pinewood:guest-events-claimed"));
-      })
-      .catch(() => undefined);
+      }
+
+      window.dispatchEvent(
+        new CustomEvent(guestClaimStatusEventName, {
+          detail: { inProgress: remaining.length > 0, remaining: remaining.length },
+        })
+      );
+
+      attemptRef.current += 1;
+      if (remaining.length > 0 && attemptRef.current < 4) {
+        timeoutRef.current = window.setTimeout(() => {
+          void claimOnce().catch(() => undefined);
+        }, 5000);
+      }
+    };
+
+    void claimOnce().catch(() => undefined);
+
+    return () => {
+      if (timeoutRef.current) window.clearTimeout(timeoutRef.current);
+    };
   }, [user?.id]);
 
   return null;
@@ -1295,6 +1327,7 @@ function EventsPage() {
   const [guestAccessUrls, setGuestAccessUrls] = useState<Record<string, { url: string; expiresAt: number }>>(() => getStoredGuestAccessUrls());
   const [copiedGuestAccessEventId, setCopiedGuestAccessEventId] = useState<string | null>(null);
   const copiedGuestAccessTimerRef = useRef<number | null>(null);
+  const [claimStatus, setClaimStatus] = useState<{ inProgress: boolean; remaining: number }>({ inProgress: false, remaining: 0 });
   const [loading, setLoading] = useState(false);
   const [guestLoading, setGuestLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1364,13 +1397,30 @@ function EventsPage() {
   }, [loadGuestEvents]);
 
   useEffect(() => {
+    if (!user) {
+      setClaimStatus({ inProgress: false, remaining: 0 });
+      return;
+    }
+    const ids = getLocalGuestEventIds();
+    if (ids.length > 0) setClaimStatus({ inProgress: true, remaining: ids.length });
+  }, [user]);
+
+  useEffect(() => {
     const onChanged = () => void loadGuestEvents();
     const onClaimed = () => void loadEvents();
+    const onClaimStatus = (e: Event) => {
+      const detail = (e as CustomEvent<{ inProgress?: unknown; remaining?: unknown }>).detail;
+      const inProgress = typeof detail?.inProgress === "boolean" ? detail.inProgress : false;
+      const remaining = typeof detail?.remaining === "number" ? detail.remaining : 0;
+      setClaimStatus({ inProgress, remaining });
+    };
     window.addEventListener("pinewood:guest-events-changed", onChanged);
     window.addEventListener("pinewood:guest-events-claimed", onClaimed);
+    window.addEventListener(guestClaimStatusEventName, onClaimStatus as EventListener);
     return () => {
       window.removeEventListener("pinewood:guest-events-changed", onChanged);
       window.removeEventListener("pinewood:guest-events-claimed", onClaimed);
+      window.removeEventListener(guestClaimStatusEventName, onClaimStatus as EventListener);
     };
   }, [loadGuestEvents, loadEvents]);
 
@@ -1520,6 +1570,12 @@ function EventsPage() {
                 <button className="secondary-btn" onClick={loadEvents}>Refresh</button>
               </div>
             </div>
+            {claimStatus.inProgress ? (
+              <div className="claiming-banner">
+                <span className="inline-spinner" aria-hidden="true" />
+                <span>Claiming local events{claimStatus.remaining > 0 ? ` (${claimStatus.remaining})` : ""}…</span>
+              </div>
+            ) : null}
             {loading ? <p>Loading events...</p> : null}
             {error ? <p className="error">{error}</p> : null}
           </section>

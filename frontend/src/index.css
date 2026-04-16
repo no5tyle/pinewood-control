@@ -508,6 +508,25 @@ label {
   align-items: center;
 }
 
+.claiming-banner {
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.inline-spinner {
+  width: 0.95rem;
+  height: 0.95rem;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--button-bg);
+  border-radius: 999px;
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
 .direct-link {
   font-size: 0.8rem;
   color: var(--link);
