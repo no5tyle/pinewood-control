@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  events       Event[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Event {
+  id             String   @id @default(cuid())
+  name           String
+  pointLimit     Int      @default(2)
+  lanes          Int      @default(4)
+  setupComplete  Boolean  @default(false)
+  isComplete     Boolean  @default(false)
+  isGuest        Boolean  @default(false) // If true, can be claimed
+  theme          String   @default("system")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  completedAt    DateTime?
+  
+  scouts         Scout[]
+  heats          Heat[]
+  kioskSessions  KioskSession[]
+  guestKioskLinks GuestKioskLink[]
+  
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Scout {
+  id          String   @id @default(cuid())
+  name        String
+  carNumber   String
+  points      Int      @default(0)
+  eliminated  Boolean  @default(false)
+  laneHistory String   @default("[]") // JSON array of lane numbers
+  
+  eventId     String
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  wonHeats    Heat[]   @relation("HeatWinner")
+}
+
+model Heat {
+  id              String   @id @default(cuid())
+  laneAssignments String   // JSON array of scout IDs
+  finishOrder     String   @default("[]") // JSON array of scout IDs in finish order
+  createdAt       DateTime @default(now())
+  
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  
+  winnerScoutId   String?
+  winnerScout     Scout?   @relation("HeatWinner", fields: [winnerScoutId], references: [id])
+  
+  loserScoutIds   String   @default("[]") // JSON array of scout IDs
+}
+
+model KioskSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  accessExpiresAt DateTime?
+  createdAt DateTime @default(now())
+  
+  eventId   String?
+  event     Event?   @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  guestKioskLinkId String?
+  guestKioskLink   GuestKioskLink? @relation(fields: [guestKioskLinkId], references: [id], onDelete: SetNull)
+}
+
+model PairingRequest {
+  id          String   @id @default(cuid())
+  qrToken     String   @unique
+  pairingCode String
+  kioskToken  String
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model GuestKioskLink {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  sessions  KioskSession[]
+}
