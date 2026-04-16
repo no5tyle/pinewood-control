@@ -41,6 +41,10 @@ type EventState = {
   setupComplete: boolean;
   theme: string;
   weightUnit?: "g" | "oz";
+  popularVoteRevealAt?: number | null;
+  popularVoteRevealCountdownSeconds?: number;
+  popularVoteWinnerScoutId?: string | null;
+  popularVoteWinner?: Scout | null;
   isGuest: boolean;
   scouts: Scout[];
   heats: Heat[];
@@ -62,8 +66,9 @@ type EventResults = {
   completedAt: number | null;
   champion: Scout | null;
   popularVote: {
-    totalVoters: number;
     totalVotes: number;
+    revealAt: number | null;
+    revealCountdownSeconds: number;
     winner: Scout | null;
     ranks: Array<{ scout: Scout; votes: number }>;
   };
@@ -995,9 +1000,9 @@ function RaceControlPage() {
   const [lateSaving, setLateSaving] = useState(false);
   const [popularVote, setPopularVote] = useState<{
     completedAt: number | null;
-    totalVoters: number;
     totalVotes: number;
-    votes: Array<{ voterScoutId: string; favoriteScoutId: string; createdAt: number }>;
+    revealAt: number | null;
+    revealCountdownSeconds: number;
     winner: Scout | null;
     ranks: Array<{ scout: Scout; votes: number }>;
   } | null>(null);
@@ -1016,9 +1021,9 @@ function RaceControlPage() {
     try {
       const data = await api<{
         completedAt: number | null;
-        totalVoters: number;
         totalVotes: number;
-        votes: Array<{ voterScoutId: string; favoriteScoutId: string; createdAt: number }>;
+        revealAt: number | null;
+        revealCountdownSeconds: number;
         winner: Scout | null;
         ranks: Array<{ scout: Scout; votes: number }>;
       }>(`/events/${event.id}/popular-vote`);
@@ -1060,7 +1065,7 @@ function RaceControlPage() {
     return currentHeat.laneAssignments.filter((id) => !picked.has(id));
   }, [currentHeat, finishOrder]);
 
-  const popularVoteVotersSorted = useMemo(() => {
+  const popularVoteCandidates = useMemo(() => {
     if (!event) return [];
     return [...event.scouts].sort((a, b) => {
       const aNum = Number.parseInt(a.carNumber, 10);
@@ -1069,20 +1074,6 @@ function RaceControlPage() {
       return a.name.localeCompare(b.name);
     });
   }, [event]);
-
-  const votedVoterIds = useMemo(() => new Set((popularVote?.votes ?? []).map((v) => v.voterScoutId)), [popularVote?.votes]);
-  const nextVoter = useMemo(() => popularVoteVotersSorted.find((s) => !votedVoterIds.has(s.id)) ?? null, [popularVoteVotersSorted, votedVoterIds]);
-  const favoriteCandidates = useMemo(() => {
-    if (!event || !nextVoter) return [];
-    return [...event.scouts]
-      .filter((s) => s.id !== nextVoter.id)
-      .sort((a, b) => {
-        const aNum = Number.parseInt(a.carNumber, 10);
-        const bNum = Number.parseInt(b.carNumber, 10);
-        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
-        return a.name.localeCompare(b.name);
-      });
-  }, [event, nextVoter]);
 
   const selectFinisher = (scoutId: string) => {
     if (!currentHeat) return;
@@ -1170,14 +1161,28 @@ function RaceControlPage() {
   };
 
   const submitPopularVote = async (favoriteScoutId: string) => {
-    if (!event || !nextVoter) return;
+    if (!event) return;
     setPopularSubmitting(true);
     setPopularError("");
     try {
       await api(`/events/${event.id}/popular-vote`, {
         method: "POST",
-        body: JSON.stringify({ voterScoutId: nextVoter.id, favoriteScoutId }),
+        body: JSON.stringify({ favoriteScoutId }),
       });
+      await refreshPopularVote();
+    } catch (e) {
+      setPopularError((e as Error).message);
+    } finally {
+      setPopularSubmitting(false);
+    }
+  };
+
+  const revealPopularVote = async () => {
+    if (!event) return;
+    setPopularSubmitting(true);
+    setPopularError("");
+    try {
+      await api(`/events/${event.id}/popular-vote/reveal`, { method: "POST" });
       await refreshPopularVote();
     } catch (e) {
       setPopularError((e as Error).message);
@@ -1277,18 +1282,24 @@ function RaceControlPage() {
         <section className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
             <h2 style={{ margin: 0 }}>Popular Vote</h2>
-            <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>
-              Refresh
-            </button>
+            <div className="inline-actions">
+              <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>
+                Refresh
+              </button>
+              <button
+                className="secondary-btn"
+                onClick={() => void revealPopularVote()}
+                disabled={popularSubmitting || !popularVote || Boolean(popularVote.revealAt)}
+              >
+                Reveal popular vote
+              </button>
+            </div>
           </div>
           {popularLoading ? <p className="muted">Loading votes…</p> : null}
           {popularError ? <p className="error">{popularError}</p> : null}
           {popularVote ? (
             <>
-              <p className="muted" style={{ marginTop: "0.5rem" }}>
-                {popularVote.totalVotes}/{popularVote.totalVoters} votes recorded
-              </p>
-              {!nextVoter ? (
+              {popularVote.revealAt ? (
                 <>
                   <h3 style={{ margin: "0.5rem 0 0" }}>Winner</h3>
                   {popularVote.winner ? (
@@ -1297,8 +1308,11 @@ function RaceControlPage() {
                       {popularVote.winner.groupName ? <span className="muted"> ({popularVote.winner.groupName})</span> : null}
                     </p>
                   ) : (
-                    <p className="muted" style={{ margin: 0 }}>No votes yet.</p>
+                    <p className="muted" style={{ margin: 0 }}>No votes recorded.</p>
                   )}
+                  <p className="muted" style={{ margin: 0 }}>
+                    {popularVote.totalVotes} vote{popularVote.totalVotes === 1 ? "" : "s"} cast
+                  </p>
                   <details style={{ marginTop: "0.75rem" }}>
                     <summary>Show ranks</summary>
                     <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
@@ -1313,28 +1327,20 @@ function RaceControlPage() {
                   </details>
                 </>
               ) : (
-                <div className="popular-vote-panel">
-                  <div className="popular-vote-voter">
-                    <div className="popular-vote-voter-label">Voter</div>
-                    <div className="popular-vote-voter-number">#{nextVoter.carNumber}</div>
-                    <div className="popular-vote-voter-name">{nextVoter.name}</div>
-                    {nextVoter.groupName ? <div className="popular-vote-voter-group">{nextVoter.groupName}</div> : null}
+                <>
+                  <p className="muted">Tap a car to cast a vote. Cast as many votes as you like, then reveal.</p>
+                  <div className="stack">
+                    {popularVoteCandidates.map((s) => (
+                      <button key={s.id} onClick={() => void submitPopularVote(s.id)} disabled={popularSubmitting}>
+                        <span className="scout-pick">
+                          <span className="scout-pick-number">#{s.carNumber}</span>
+                          <span className="scout-pick-name">{s.name}</span>
+                          {s.groupName ? <span className="scout-pick-group">({s.groupName})</span> : null}
+                        </span>
+                      </button>
+                    ))}
                   </div>
-                  <div className="popular-vote-choices">
-                    <div className="popular-vote-choices-title">Pick favourite car</div>
-                    <div className="stack">
-                      {favoriteCandidates.map((s) => (
-                        <button key={s.id} onClick={() => void submitPopularVote(s.id)} disabled={popularSubmitting}>
-                          <span className="scout-pick">
-                            <span className="scout-pick-number">#{s.carNumber}</span>
-                            <span className="scout-pick-name">{s.name}</span>
-                            {s.groupName ? <span className="scout-pick-group">({s.groupName})</span> : null}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                </>
               )}
             </>
           ) : (
@@ -1386,6 +1392,7 @@ function KioskPage() {
   const [lastActiveHeatId, setLastActiveHeatId] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<"idle" | "copying" | "copied">("idle");
   const shareTimerRef = useRef<number | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   const isNewEvent = eventId === "new" || (event?.name === "New Pinewood Derby Event" && !event?.setupComplete);
   const kioskTheme = (event?.theme as ThemeName | undefined) ?? "system";
@@ -1395,6 +1402,12 @@ function KioskPage() {
       if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!event?.popularVoteRevealAt) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 250);
+    return () => window.clearInterval(id);
+  }, [event?.popularVoteRevealAt]);
 
   const copyKioskLink = async () => {
     if (!event?.id) return;
@@ -1618,6 +1631,34 @@ function KioskPage() {
                       #{scoutMap.get(event.championScoutId)?.carNumber} {scoutMap.get(event.championScoutId)?.name}
                     </span>
                   </div>
+                  {event.popularVoteRevealAt ? (
+                    (() => {
+                      const revealAt = event.popularVoteRevealAt ?? 0;
+                      const countdownSeconds = event.popularVoteRevealCountdownSeconds ?? 10;
+                      const revealEndMs = revealAt + countdownSeconds * 1000;
+                      const remainingSeconds = Math.max(0, Math.ceil((revealEndMs - nowMs) / 1000));
+
+                      if (remainingSeconds > 0) {
+                        return (
+                          <div className="kiosk-popular-countdown" aria-label="Popular vote countdown">
+                            <div className="kiosk-popular-countdown-title">Popular Vote</div>
+                            <div className="kiosk-popular-countdown-number">{remainingSeconds}</div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div className="kiosk-final-popular">
+                          Popular Vote:{" "}
+                          <span className="kiosk-final-winner-name">
+                            {event.popularVoteWinner
+                              ? `#${event.popularVoteWinner.carNumber} ${event.popularVoteWinner.name}`
+                              : "No votes"}
+                          </span>
+                        </div>
+                      );
+                    })()
+                  ) : null}
                 </div>
                 <div className="kiosk-final-standings">
                   {event.standings.map((scout, index) => (
@@ -2226,8 +2267,13 @@ function ResultsPage() {
 
         <section className="card">
           <h2>Popular Vote</h2>
-          {results.popularVote.totalVotes === 0 ? (
-            <p className="muted">No votes recorded yet.</p>
+          {!results.popularVote.revealAt ? (
+            <>
+              <p className="muted" style={{ margin: 0 }}>Not revealed yet.</p>
+              <p className="muted" style={{ margin: 0 }}>{results.popularVote.totalVotes} vote{results.popularVote.totalVotes === 1 ? "" : "s"} cast</p>
+            </>
+          ) : results.popularVote.totalVotes === 0 ? (
+            <p className="muted">No votes recorded.</p>
           ) : (
             <>
               <p style={{ margin: 0 }}>
@@ -2238,7 +2284,7 @@ function ResultsPage() {
                 {results.popularVote.winner?.groupName ? <span className="muted"> ({results.popularVote.winner.groupName})</span> : null}
               </p>
               <p className="muted" style={{ margin: 0 }}>
-                {results.popularVote.totalVotes}/{results.popularVote.totalVoters} votes recorded
+                {results.popularVote.totalVotes} vote{results.popularVote.totalVotes === 1 ? "" : "s"} cast
               </p>
               <details style={{ marginTop: "0.5rem" }}>
                 <summary>Show ranks</summary>

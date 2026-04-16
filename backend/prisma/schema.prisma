@@ -30,6 +30,9 @@ model Event {
   isGuest        Boolean  @default(false) // If true, can be claimed
   theme          String   @default("system")
   weightUnit     String   @default("g")
+  popularVoteRevealAt DateTime?
+  popularVoteRevealCountdownSeconds Int @default(10)
+  popularVoteWinnerScoutId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   completedAt    DateTime?
@@ -39,6 +42,7 @@ model Event {
   kioskSessions  KioskSession[]
   guestKioskLinks GuestKioskLink[]
   popularVotes   PopularVote[]
+  popularVoteWinner Scout? @relation("PopularVoteWinner", fields: [popularVoteWinnerScoutId], references: [id], onDelete: SetNull)
   
   userId         String?
   user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -61,8 +65,8 @@ model Scout {
   
   wonHeats    Heat[]   @relation("HeatWinner")
   eliminatedHeat Heat? @relation("HeatElimination", fields: [eliminatedHeatId], references: [id], onDelete: SetNull)
-  votesCast   PopularVote[] @relation("PopularVoteVoter")
-  votesReceived PopularVote[] @relation("PopularVoteFavorite")
+  popularVoteWins Event[] @relation("PopularVoteWinner")
+  votesReceived PopularVote[]
 }
 
 model Heat {
@@ -124,11 +128,6 @@ model PopularVote {
   eventId        String
   event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
-  voterScoutId   String
-  voter          Scout    @relation("PopularVoteVoter", fields: [voterScoutId], references: [id], onDelete: Cascade)
-
   favoriteScoutId String
-  favorite       Scout    @relation("PopularVoteFavorite", fields: [favoriteScoutId], references: [id], onDelete: Cascade)
-
-  @@unique([eventId, voterScoutId])
+  favorite       Scout    @relation(fields: [favoriteScoutId], references: [id], onDelete: Cascade)
 }

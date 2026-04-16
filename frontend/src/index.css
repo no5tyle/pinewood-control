@@ -841,6 +841,34 @@ label {
   line-height: 1.05;
 }
 
+.kiosk-final-popular {
+  margin-top: 1rem;
+  font-size: 1.7rem;
+  font-weight: 800;
+}
+
+.kiosk-popular-countdown {
+  margin-top: 1.5rem;
+  display: grid;
+  gap: 0.5rem;
+  justify-items: center;
+}
+
+.kiosk-popular-countdown-title {
+  font-size: 1.4rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  opacity: 0.8;
+}
+
+.kiosk-popular-countdown-number {
+  font-size: 6rem;
+  font-weight: 900;
+  line-height: 1;
+  color: var(--banner-bg);
+}
+
 .kiosk-final-standings {
   display: grid;
   gap: 1rem;

@@ -318,7 +318,6 @@ const postResultSchema = z.object({
 });
 
 const popularVoteSchema = z.object({
-  voterScoutId: z.string().min(1),
   favoriteScoutId: z.string().min(1),
 });
 
@@ -380,6 +379,9 @@ function serializeEvent(event: any) {
   const active = scouts.filter((s: any) => !s.eliminated);
   const finalWinner = (event.setupComplete && active.length === 1) ? active[0] : null;
   const currentHeat = event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0);
+  const popularVoteWinner = event.popularVoteWinnerScoutId
+    ? scouts.find((s: any) => s.id === event.popularVoteWinnerScoutId) ?? null
+    : null;
 
   return {
     id: event.id,
@@ -390,6 +392,10 @@ function serializeEvent(event: any) {
     isGuest: Boolean(event.isGuest),
     theme: event.theme,
     weightUnit: event.weightUnit ?? "g",
+    popularVoteRevealAt: event.popularVoteRevealAt?.getTime() ?? null,
+    popularVoteRevealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+    popularVoteWinnerScoutId: event.popularVoteWinnerScoutId ?? null,
+    popularVoteWinner,
     createdAt: event.createdAt.getTime(),
     completedAt: event.completedAt?.getTime() ?? null,
     scouts,
@@ -1217,37 +1223,38 @@ app.get("/api/events/:eventId/popular-vote", async (req, res) => {
     const serialized = serializeEvent(event);
     const votes = await prisma.popularVote.findMany({
       where: { eventId: req.params.eventId },
-      select: { voterScoutId: true, favoriteScoutId: true, createdAt: true },
+      select: { favoriteScoutId: true, createdAt: true },
     });
 
     const votesByFavorite = new Map<string, number>();
     votes.forEach((v) => votesByFavorite.set(v.favoriteScoutId, (votesByFavorite.get(v.favoriteScoutId) ?? 0) + 1));
 
-    const ranks = [...serialized.scouts]
-      .map((s: any) => ({
-        scout: s,
-        votes: votesByFavorite.get(s.id) ?? 0,
-      }))
-      .sort((a, b) => {
-        if (a.votes !== b.votes) return b.votes - a.votes;
-        const aNum = Number.parseInt(String(a.scout.carNumber ?? ""), 10);
-        const bNum = Number.parseInt(String(b.scout.carNumber ?? ""), 10);
-        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
-        return String(a.scout.name ?? "").localeCompare(String(b.scout.name ?? ""));
-      });
+    const ranks =
+      event.popularVoteRevealAt
+        ? [...serialized.scouts]
+            .map((s: any) => ({
+              scout: s,
+              votes: votesByFavorite.get(s.id) ?? 0,
+            }))
+            .sort((a, b) => {
+              if (a.votes !== b.votes) return b.votes - a.votes;
+              const aNum = Number.parseInt(String(a.scout.carNumber ?? ""), 10);
+              const bNum = Number.parseInt(String(b.scout.carNumber ?? ""), 10);
+              if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+              return String(a.scout.name ?? "").localeCompare(String(b.scout.name ?? ""));
+            })
+        : [];
 
-    const winner = ranks.length > 0 && ranks[0].votes > 0 ? ranks[0] : null;
+    const winner = event.popularVoteWinnerScoutId
+      ? serialized.scouts.find((s: any) => s.id === event.popularVoteWinnerScoutId) ?? null
+      : null;
 
     return res.json({
       completedAt: event.completedAt?.getTime() ?? null,
-      totalVoters: serialized.scouts.length,
       totalVotes: votes.length,
-      votes: votes.map((v) => ({
-        voterScoutId: v.voterScoutId,
-        favoriteScoutId: v.favoriteScoutId,
-        createdAt: v.createdAt.getTime(),
-      })),
-      winner: winner ? winner.scout : null,
+      revealAt: event.popularVoteRevealAt?.getTime() ?? null,
+      revealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+      winner,
       ranks,
     });
   } catch {
@@ -1258,37 +1265,87 @@ app.get("/api/events/:eventId/popular-vote", async (req, res) => {
 app.post("/api/events/:eventId/popular-vote", async (req, res) => {
   const parsed = popularVoteSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
-  if (parsed.data.voterScoutId === parsed.data.favoriteScoutId) {
-    return res.status(400).json({ message: "Voter cannot vote for themselves" });
-  }
 
   try {
     const access = await requireEventWriteAccess(req as AuthRequest, res, req.params.eventId);
     if (!access) return;
     const event = await prisma.event.findUnique({
       where: { id: req.params.eventId },
-      select: { id: true, completedAt: true },
+      select: { id: true, completedAt: true, popularVoteRevealAt: true },
     });
     if (!event) return res.status(404).json({ message: "Event not found" });
     if (!event.completedAt) return res.status(400).json({ message: "Event is not complete yet" });
+    if (event.popularVoteRevealAt) return res.status(400).json({ message: "Popular vote has been revealed" });
 
-    const scouts = await prisma.scout.findMany({
-      where: { eventId: req.params.eventId, id: { in: [parsed.data.voterScoutId, parsed.data.favoriteScoutId] } },
+    const favorite = await prisma.scout.findFirst({
+      where: { eventId: req.params.eventId, id: parsed.data.favoriteScoutId },
       select: { id: true },
     });
-    if (scouts.length !== 2) return res.status(400).json({ message: "Invalid racer selection" });
+    if (!favorite) return res.status(400).json({ message: "Invalid racer selection" });
 
-    const vote = await prisma.popularVote.upsert({
-      where: { eventId_voterScoutId: { eventId: req.params.eventId, voterScoutId: parsed.data.voterScoutId } },
-      update: { favoriteScoutId: parsed.data.favoriteScoutId },
-      create: {
+    const vote = await prisma.popularVote.create({
+      data: {
         eventId: req.params.eventId,
-        voterScoutId: parsed.data.voterScoutId,
         favoriteScoutId: parsed.data.favoriteScoutId,
       },
     });
 
-    return res.status(201).json({ id: vote.id });
+    return res.status(201).json({ id: vote.id, createdAt: vote.createdAt.getTime() });
+  } catch {
+    return res.status(404).json({ message: "Event not found" });
+  }
+});
+
+app.post("/api/events/:eventId/popular-vote/reveal", async (req, res) => {
+  try {
+    const access = await requireEventWriteAccess(req as AuthRequest, res, req.params.eventId);
+    if (!access) return;
+    const event = await prisma.event.findUnique({
+      where: { id: req.params.eventId },
+      select: { id: true, completedAt: true, popularVoteRevealAt: true, popularVoteRevealCountdownSeconds: true },
+    });
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (!event.completedAt) return res.status(400).json({ message: "Event is not complete yet" });
+    if (event.popularVoteRevealAt) return res.status(400).json({ message: "Popular vote has already been revealed" });
+
+    const scouts = await prisma.scout.findMany({
+      where: { eventId: req.params.eventId },
+      select: { id: true, carNumber: true, name: true },
+    });
+    const votes = await prisma.popularVote.findMany({
+      where: { eventId: req.params.eventId },
+      select: { favoriteScoutId: true },
+    });
+    const counts = new Map<string, number>();
+    votes.forEach((v) => counts.set(v.favoriteScoutId, (counts.get(v.favoriteScoutId) ?? 0) + 1));
+
+    const ranked = [...scouts]
+      .map((s) => ({ ...s, votes: counts.get(s.id) ?? 0 }))
+      .sort((a, b) => {
+        if (a.votes !== b.votes) return b.votes - a.votes;
+        const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+        const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+        return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+      });
+
+    const winnerId = ranked.length > 0 && ranked[0].votes > 0 ? ranked[0].id : null;
+    const revealAt = new Date();
+    await prisma.event.update({
+      where: { id: req.params.eventId },
+      data: {
+        popularVoteRevealAt: revealAt,
+        popularVoteWinnerScoutId: winnerId,
+      },
+    });
+
+    publishEvent(req.params.eventId);
+    return res.status(200).json({
+      revealAt: revealAt.getTime(),
+      revealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+      winnerScoutId: winnerId,
+      totalVotes: votes.length,
+    });
   } catch {
     return res.status(404).json({ message: "Event not found" });
   }
@@ -1307,25 +1364,29 @@ app.get("/api/events/:eventId/results", async (req, res) => {
     });
     const voteCounts = new Map<string, number>();
     votes.forEach((v) => voteCounts.set(v.favoriteScoutId, (voteCounts.get(v.favoriteScoutId) ?? 0) + 1));
-    const popularVoteRanks = [...serialized.scouts]
-      .map((s: any) => ({ scout: s, votes: voteCounts.get(s.id) ?? 0 }))
-      .sort((a, b) => {
-        if (a.votes !== b.votes) return b.votes - a.votes;
-        const aNum = Number.parseInt(String(a.scout.carNumber ?? ""), 10);
-        const bNum = Number.parseInt(String(b.scout.carNumber ?? ""), 10);
-        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
-        return String(a.scout.name ?? "").localeCompare(String(b.scout.name ?? ""));
-      });
-    const popularVoteWinner = popularVoteRanks.length > 0 && popularVoteRanks[0].votes > 0 ? popularVoteRanks[0] : null;
+    const popularVoteRanks =
+      event.popularVoteRevealAt
+        ? [...serialized.scouts]
+            .map((s: any) => ({ scout: s, votes: voteCounts.get(s.id) ?? 0 }))
+            .sort((a, b) => {
+              if (a.votes !== b.votes) return b.votes - a.votes;
+              const aNum = Number.parseInt(String(a.scout.carNumber ?? ""), 10);
+              const bNum = Number.parseInt(String(b.scout.carNumber ?? ""), 10);
+              if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+              return String(a.scout.name ?? "").localeCompare(String(b.scout.name ?? ""));
+            })
+        : [];
+    const popularVoteWinner = serialized.popularVoteWinner ?? null;
     
     return res.json({
       event: serialized,
       completedAt: event.completedAt?.getTime() ?? null,
       champion: serialized.championScoutId ? serializedScoutsById.get(serialized.championScoutId) ?? null : null,
       popularVote: {
-        totalVoters: serialized.scouts.length,
         totalVotes: votes.length,
-        winner: popularVoteWinner ? popularVoteWinner.scout : null,
+        revealAt: event.popularVoteRevealAt?.getTime() ?? null,
+        revealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+        winner: popularVoteWinner,
         ranks: popularVoteRanks,
       },
       heatResults: event.heats.map((heat: any) => ({
