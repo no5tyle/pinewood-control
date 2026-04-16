@@ -13,8 +13,13 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const prisma = new PrismaClient();
 const app = express();
 const httpServer = createServer(app);
+
+const corsOrigin = (process.env.CORS_ORIGIN ?? "").trim();
+const corsOrigins = corsOrigin.length > 0 ? corsOrigin.split(",").map((s) => s.trim()).filter(Boolean) : [];
+const allowAllOrigins = corsOrigins.length === 0;
+
 const io = new Server(httpServer, {
-  cors: { origin: "*" },
+  cors: allowAllOrigins ? { origin: "*" } : { origin: corsOrigins, credentials: true },
 });
 
 // --- Auth Middleware ---
@@ -48,7 +53,7 @@ const requireAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
   next();
 };
 
-app.use(cors());
+app.use(cors(allowAllOrigins ? undefined : { origin: corsOrigins, credentials: true }));
 app.use(express.json());
 app.use(authenticate as express.RequestHandler);
 
