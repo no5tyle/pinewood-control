@@ -679,7 +679,7 @@ function ConfigurePage() {
     e.preventDefault();
     if (!session?.eventId) return;
     
-    if (step < 2) {
+    if (step < 3) {
       setStep(step + 1);
       return;
     }
@@ -744,43 +744,102 @@ function ConfigurePage() {
         </div>
       )}
       <div className="wizard-steps">
-        <div className={`wizard-step ${step === 1 ? "active" : step > 1 ? "completed" : ""}`}>1. Lanes</div>
-        <div className={`wizard-step ${step === 2 ? "active" : step > 2 ? "completed" : ""}`}>2. Points</div>
+        <div className={`wizard-step ${step === 1 ? "active" : step > 1 ? "completed" : ""}`}>1. Theme</div>
+        <div className={`wizard-step ${step === 2 ? "active" : step > 2 ? "completed" : ""}`}>2. Lanes</div>
+        <div className={`wizard-step ${step === 3 ? "active" : step > 3 ? "completed" : ""}`}>3. Points</div>
       </div>
 
       <form className="card" onSubmit={saveAndNext}>
         {step === 1 && (
           <>
             <h2>Tournament Theme</h2>
-            <label>Select a visual theme for the race
-              <select value={theme} onChange={(e) => setTheme(e.target.value as ThemeName)} style={{ marginBottom: "1rem" }}>
-                <option value="system">System (light/dark)</option>
-                <option value="scouts-joeys">Joeys</option>
-                <option value="scouts-au-cubs">Cubs</option>
-                <option value="scouts-green">Scouts</option>
-                <option value="scouts-america">Scouts America</option>
-              </select>
-            </label>
+            <p className="muted">Select a theme to continue.</p>
+            <div className="theme-grid">
+              <button
+                type="button"
+                className="theme-btn"
+                data-theme="system"
+                onClick={() => {
+                  setTheme("system");
+                  setError("");
+                  setStep(2);
+                }}
+              >
+                <div className="theme-swatch" data-theme="system" />
+                <div className="theme-title">System</div>
+                <div className="theme-subtitle">Matches light/dark</div>
+              </button>
+              <button
+                type="button"
+                className="theme-btn"
+                data-theme="scouts-joeys"
+                onClick={() => {
+                  setTheme("scouts-joeys");
+                  setError("");
+                  setStep(2);
+                }}
+              >
+                <div className="theme-swatch" data-theme="scouts-joeys" />
+                <div className="theme-title">Joeys</div>
+                <div className="theme-subtitle">Scouts Australia</div>
+              </button>
+              <button
+                type="button"
+                className="theme-btn"
+                data-theme="scouts-au-cubs"
+                onClick={() => {
+                  setTheme("scouts-au-cubs");
+                  setError("");
+                  setStep(2);
+                }}
+              >
+                <div className="theme-swatch" data-theme="scouts-au-cubs" />
+                <div className="theme-title">Cubs</div>
+                <div className="theme-subtitle">Scouts Australia</div>
+              </button>
+              <button
+                type="button"
+                className="theme-btn"
+                data-theme="scouts-america"
+                onClick={() => {
+                  setTheme("scouts-america");
+                  setError("");
+                  setStep(2);
+                }}
+              >
+                <div className="theme-swatch" data-theme="scouts-america" />
+                <div className="theme-title">Scouts America</div>
+                <div className="theme-subtitle">BSA styling</div>
+              </button>
+            </div>
+          </>
+        )}
+        {step === 2 && (
+          <>
             <h2>Track Lanes</h2>
+            <p className="muted">Enter your track lane count.</p>
             <label>How many lanes does your track have?
               <input type="number" min={2} max={6} value={lanes} onChange={(e) => setLanes(e.target.value)} autoFocus />
             </label>
           </>
         )}
-        {step === 2 && (
+        {step === 3 && (
           <>
             <h2>Elimination Points</h2>
+            <p className="muted">Lower numbers eliminate racers faster.</p>
             <label>How many points before a racer is eliminated?
               <input type="number" min={1} max={200} value={pointLimit} onChange={(e) => setPointLimit(e.target.value)} autoFocus />
             </label>
           </>
         )}
 
-        <div className="wizard-actions">
-          {step > 1 && <button type="button" className="secondary-btn" onClick={() => setStep(step - 1)}>Back</button>}
-          <div style={{ flex: 1 }} />
-          <button type="submit">{step === 2 ? "Continue to contestants" : "Next"}</button>
-        </div>
+        {step > 1 ? (
+          <div className="wizard-actions">
+            <button type="button" className="secondary-btn" onClick={() => setStep(step - 1)}>Back</button>
+            <div style={{ flex: 1 }} />
+            <button type="submit">{step === 3 ? "Continue to contestants" : "Next"}</button>
+          </div>
+        ) : null}
       </form>
       {error ? <p className="error">{error}</p> : null}
     </main>

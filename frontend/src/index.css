@@ -619,6 +619,57 @@ label {
   margin-top: 1rem;
 }
 
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.75rem;
+}
+
+.theme-btn {
+  border: 2px solid var(--card-border);
+  background: var(--card);
+  border-radius: 0.6rem;
+  padding: 0.75rem;
+  text-align: left;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.theme-btn:hover {
+  border-color: var(--button-bg);
+}
+
+.theme-swatch {
+  height: 2rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--card-border);
+}
+
+.theme-swatch[data-theme="system"] {
+  background: linear-gradient(90deg, #f8fafc 0%, #f8fafc 50%, #0f172a 50%, #0f172a 100%);
+}
+
+.theme-swatch[data-theme="scouts-joeys"] {
+  background: linear-gradient(90deg, #0a1b2e 0%, #0a1b2e 60%, #ba6228 60%, #ba6228 100%);
+}
+
+.theme-swatch[data-theme="scouts-au-cubs"] {
+  background: linear-gradient(90deg, #f1f5f9 0%, #f1f5f9 60%, #f9b233 60%, #f9b233 100%);
+}
+
+.theme-swatch[data-theme="scouts-america"] {
+  background: linear-gradient(90deg, #001a3a 0%, #001a3a 60%, #ce1126 60%, #ce1126 100%);
+}
+
+.theme-title {
+  font-weight: 800;
+}
+
+.theme-subtitle {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .kiosk-pair-only {
   min-height: 100vh;
   background: var(--kiosk-bg);
