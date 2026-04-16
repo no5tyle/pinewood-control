@@ -520,6 +520,24 @@ label {
   align-items: center;
 }
 
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 500;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 520px;
+  display: grid;
+  gap: 1rem;
+  position: relative;
+}
+
 .claiming-banner {
   margin-top: 0.75rem;
   display: flex;

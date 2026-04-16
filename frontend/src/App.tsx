@@ -697,8 +697,20 @@ function ConfigurePage() {
     e.preventDefault();
     if (!session?.eventId) return;
     
-    if (step < 3) {
-      setStep(step + 1);
+    if (step === 1) return;
+
+    if (step === 2) {
+      const lanesNum = Number(lanes);
+      if (!Number.isFinite(lanesNum) || lanes.trim().length === 0) {
+        setError("Please enter the number of lanes.");
+        return;
+      }
+      if (lanesNum < 2 || lanesNum > 6) {
+        setError("Lanes must be between 2 and 6.");
+        return;
+      }
+      setError("");
+      setStep(3);
       return;
     }
 
@@ -965,6 +977,13 @@ function RaceControlPage() {
   const currentHeat = useMemo(() => event?.heats?.find((h) => h.id === event.currentHeatId), [event]);
   const scoutById = useMemo(() => new Map((event?.scouts ?? []).map((s) => [s.id, s])), [event?.scouts]);
   const [finishOrder, setFinishOrder] = useState<string[]>([]);
+  const [showLateEntrant, setShowLateEntrant] = useState(false);
+  const [lateName, setLateName] = useState("");
+  const [lateGroup, setLateGroup] = useState("");
+  const [lateWeight, setLateWeight] = useState("");
+  const [latePenalty, setLatePenalty] = useState("");
+  const [lateError, setLateError] = useState("");
+  const [lateSaving, setLateSaving] = useState(false);
 
   useEffect(() => {
     setFinishOrder([]);
@@ -1035,6 +1054,51 @@ function RaceControlPage() {
     }
   };
 
+  const addLateEntrant = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!event) return;
+    if (!lateName.trim()) return;
+
+    const weightValue = lateWeight.trim().length > 0 ? Number(lateWeight) : undefined;
+    const penaltyValue = latePenalty.trim().length > 0 ? Number(latePenalty) : undefined;
+
+    if (lateWeight.trim().length > 0 && !Number.isFinite(weightValue as number)) {
+      setLateError("Weight must be a number.");
+      return;
+    }
+    if (latePenalty.trim().length > 0 && (!Number.isFinite(penaltyValue as number) || (penaltyValue as number) < 0)) {
+      setLateError("Points penalty must be a positive number.");
+      return;
+    }
+    if (latePenalty.trim().length > 0 && !Number.isInteger(penaltyValue as number)) {
+      setLateError("Points penalty must be a whole number.");
+      return;
+    }
+
+    setLateSaving(true);
+    setLateError("");
+    try {
+      await api(`/events/${event.id}/scouts`, {
+        method: "POST",
+        body: JSON.stringify({
+          name: lateName.trim(),
+          groupName: lateGroup.trim().length > 0 ? lateGroup.trim() : undefined,
+          weight: Number.isFinite(weightValue as number) ? weightValue : undefined,
+          pointsPenalty: Number.isFinite(penaltyValue as number) ? penaltyValue : undefined,
+        }),
+      });
+      setLateName("");
+      setLateGroup("");
+      setLateWeight("");
+      setLatePenalty("");
+      setShowLateEntrant(false);
+    } catch (err) {
+      setLateError((err as Error).message);
+    } finally {
+      setLateSaving(false);
+    }
+  };
+
   if (!eventId) return <Navigate to="/" replace />;
   if (error) {
     if (isAuthRequiredError(error)) return <AuthRequiredPage message={error} />;
@@ -1057,6 +1121,11 @@ function RaceControlPage() {
       <header className="operator-header">
         <h1>{event.name}</h1>
         <p>Lanes: {event.lanes} | Elimination points: {event.pointLimit}</p>
+        <div className="inline-actions">
+          <button className="secondary-btn" onClick={() => { setShowLateEntrant(true); setLateError(""); }}>
+            Add late entrant
+          </button>
+        </div>
       </header>
       <section className="card">
         <h2>Current Heat</h2>
@@ -1118,6 +1187,26 @@ function RaceControlPage() {
         </section>
       ) : null}
       {submitError ? <p className="error">{submitError}</p> : null}
+      {showLateEntrant ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Add late entrant">
+          <section className="card modal-card">
+            <button className="close-overlay" onClick={() => setShowLateEntrant(false)} aria-label="Close">×</button>
+            <h2>Add Late Entrant</h2>
+            <form onSubmit={addLateEntrant} className="stack">
+              <label>Racer<input value={lateName} onChange={(e) => setLateName(e.target.value)} required autoFocus /></label>
+              <label>Group / Patrol / Den (optional)<input value={lateGroup} onChange={(e) => setLateGroup(e.target.value)} /></label>
+              <label>Weight ({event.weightUnit === "oz" ? "oz" : "g"}) (optional)<input type="number" step="any" value={lateWeight} onChange={(e) => setLateWeight(e.target.value)} /></label>
+              <label>Points penalty (optional)<input type="number" min={0} step={1} value={latePenalty} onChange={(e) => setLatePenalty(e.target.value)} /></label>
+              <div className="wizard-actions">
+                <button type="button" className="secondary-btn" onClick={() => setShowLateEntrant(false)}>Cancel</button>
+                <div style={{ flex: 1 }} />
+                <button type="submit" disabled={lateSaving}>{lateSaving ? "Adding..." : "Add"}</button>
+              </div>
+            </form>
+            {lateError ? <p className="error">{lateError}</p> : null}
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }
