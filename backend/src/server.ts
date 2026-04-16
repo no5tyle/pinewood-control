@@ -332,6 +332,17 @@ function safeParseJSON<T>(json: string | null | undefined, defaultValue: T): T {
   }
 }
 
+function shuffle<T>(items: T[]): T[] {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = arr[i];
+    arr[i] = arr[j];
+    arr[j] = tmp;
+  }
+  return arr;
+}
+
 async function getEventWithDetails(eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -529,16 +540,86 @@ function laneBalanceScore(scout: any, lane: number): number {
   return history.filter((l) => l === lane).length;
 }
 
+function heatsRunCount(scout: any): number {
+  return safeParseJSON<number[]>(scout.laneHistory, []).length;
+}
+
+function compareScoutsForSelection(a: any, b: any): number {
+  const aRuns = heatsRunCount(a);
+  const bRuns = heatsRunCount(b);
+  if (aRuns !== bRuns) return aRuns - bRuns;
+  if (a.points !== b.points) return a.points - b.points;
+  const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+  const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+  if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+  return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+}
+
+function sampleUniqueGroups(pool: any[], size: number, target: number): any[][] {
+  if (size < 2) return [];
+  if (pool.length < size) return [];
+  if (pool.length === size) return [pool];
+
+  const out: any[][] = [];
+  const seen = new Set<string>();
+
+  const keyOf = (items: any[]) => items.map((s) => s.id).sort().join(",");
+
+  const baseline = [...pool].sort(compareScoutsForSelection).slice(0, size);
+  seen.add(keyOf(baseline));
+  out.push(baseline);
+
+  let tries = 0;
+  while (out.length < target && tries < target * 15) {
+    tries += 1;
+    const picked = shuffle(pool).slice(0, size);
+    const key = keyOf(picked);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(picked);
+  }
+
+  return out;
+}
+
+function chooseDesiredHeatSize(minBucketSize: number, lanes: number): number {
+  const laneMax = Math.max(2, lanes);
+  if (minBucketSize <= 1) return 2;
+  if (minBucketSize <= laneMax) return minBucketSize;
+  const heatsNeeded = Math.ceil(minBucketSize / laneMax);
+  const balancedSize = Math.ceil(minBucketSize / heatsNeeded);
+  return Math.min(laneMax, Math.max(2, balancedSize));
+}
+
 async function chooseNextHeat(eventId: string): Promise<any | null> {
   const event = await getEventWithDetails(eventId);
   const active = event.scouts.filter((s) => !s.eliminated);
   if (active.length < 2) return null;
 
-  const heatSize = Math.min(Math.max(event.lanes, 2), active.length);
-  if (heatSize < 2) return null;
+  const laneMax = Math.min(Math.max(event.lanes, 2), active.length);
+  if (laneMax < 2) return null;
+
+  const runsById = new Map(active.map((s) => [s.id, heatsRunCount(s)]));
+  const minRuns = Math.min(...[...runsById.values()]);
+  const minBucket = active.filter((s) => (runsById.get(s.id) ?? 0) === minRuns);
+  const desiredHeatSize = Math.min(laneMax, chooseDesiredHeatSize(minBucket.length, laneMax));
 
   const pairCounts = await buildPairCounts(eventId);
-  const candidateGroups = buildCandidateGroups(active, heatSize);
+  const candidateGroups: any[][] = (() => {
+    if (minBucket.length >= desiredHeatSize) {
+      return sampleUniqueGroups(minBucket, desiredHeatSize, 140);
+    }
+
+    const fixed = [...minBucket].sort(compareScoutsForSelection);
+    const remainingSlots = Math.max(0, desiredHeatSize - fixed.length);
+    const others = active
+      .filter((s) => !fixed.some((m) => m.id === s.id))
+      .sort(compareScoutsForSelection);
+    const fillPoolSize = Math.min(others.length, Math.max(remainingSlots * 4, 12));
+    const fillPool = others.slice(0, fillPoolSize);
+    const fillGroups = remainingSlots === 0 ? [[]] : sampleUniqueGroups(fillPool, remainingSlots, 140);
+    return fillGroups.map((g) => [...fixed, ...g]);
+  })();
 
   let bestLaneAssignments: string[] | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
@@ -562,10 +643,21 @@ async function chooseNextHeat(eventId: string): Promise<any | null> {
 
     if (!bestGroupAssignment) continue;
 
+    const afterRuns = new Map(runsById);
+    group.forEach((s) => afterRuns.set(s.id, (afterRuns.get(s.id) ?? 0) + 1));
+    const afterValues = [...afterRuns.values()];
+    const afterMin = Math.min(...afterValues);
+    const afterMax = Math.max(...afterValues);
+    const participationSpreadAfter = afterMax - afterMin;
+    const participationTotalDeviation = afterValues.reduce((sum, v) => sum + (v - afterMin), 0);
+
     let repeats = 0;
+    let newPairs = 0;
     for (let i = 0; i < group.length; i += 1) {
       for (let j = i + 1; j < group.length; j += 1) {
-        repeats += pairCounts.get(pairKey(group[i].id, group[j].id)) ?? 0;
+        const count = pairCounts.get(pairKey(group[i].id, group[j].id)) ?? 0;
+        repeats += count;
+        if (count === 0) newPairs += 1;
       }
     }
 
@@ -576,12 +668,15 @@ async function chooseNextHeat(eventId: string): Promise<any | null> {
     const pointAvg = points.reduce((sum, p) => sum + p, 0) / points.length;
     const pointDeviation = points.reduce((sum, p) => sum + Math.abs(p - pointAvg), 0);
 
-    // Heuristic: balance lanes heavily, then keep racers close in points, then reduce repeat matchups.
+    // Heuristic: balance heats-partaken first, then prioritize fresh matchups, then lane fairness, then points closeness.
     const score =
-      bestGroupLaneCost * 200 +
-      pointSpread * 120 +
-      pointDeviation * 40 +
-      repeats * 60;
+      participationSpreadAfter * 1_000_000 +
+      participationTotalDeviation * 80_000 +
+      repeats * 9_000 +
+      newPairs * -450 +
+      bestGroupLaneCost * 400 +
+      pointSpread * 70 +
+      pointDeviation * 20;
 
     if (score < bestScore) {
       bestScore = score;
