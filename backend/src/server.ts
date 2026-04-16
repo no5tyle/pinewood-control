@@ -310,6 +310,7 @@ const addScoutSchema = z.object({
   name: z.string().min(1),
   groupName: z.string().trim().min(1).max(50).optional(),
   weight: z.number().positive().max(10_000).optional(),
+  pointsPenalty: z.number().int().min(0).max(200).optional(),
 });
 
 const postResultSchema = z.object({
@@ -878,6 +879,11 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
   try {
     const access = await requireEventWriteAccess(req as AuthRequest, res, req.params.eventId);
     if (!access) return;
+    const event = await prisma.event.findUnique({
+      where: { id: req.params.eventId },
+      select: { id: true, pointLimit: true },
+    });
+    if (!event) return res.status(404).json({ message: "Event not found" });
     const existing = await prisma.scout.findMany({
       where: { eventId: req.params.eventId },
       select: { carNumber: true },
@@ -887,6 +893,7 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
       return Number.isFinite(n) ? Math.max(max, n) : max;
     }, 0);
     const carNumber = String(maxCarNumber + 1);
+    const pointsPenalty = parsed.data.pointsPenalty ?? 0;
     const scout = await prisma.scout.create({
       data: {
         id: nanoid(10),
@@ -894,6 +901,8 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
         carNumber,
         groupName: parsed.data.groupName ?? null,
         weight: parsed.data.weight ?? null,
+        points: pointsPenalty,
+        eliminated: pointsPenalty >= event.pointLimit,
         eventId: req.params.eventId,
       }
     });
