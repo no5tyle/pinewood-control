@@ -123,6 +123,17 @@ type RacePatrolListResponse = {
   patrols: RacePatrol[];
 };
 
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v10h-2V9Zm4 0h2v10h-2V9ZM6 7h12l-1 14H7L6 7Z"
+      />
+    </svg>
+  );
+}
+
 function getApiOrigin(): string {
   const value = import.meta.env.VITE_API_ORIGIN as string | undefined;
   if (!value) return "";
@@ -1786,12 +1797,12 @@ function EventsPage() {
               {guestEvents.map((event) => (
                 <div key={event.id} className="event-item card">
                   <button
-                    className="danger-btn corner-delete-btn"
+                    className="danger-btn corner-delete-btn icon-btn"
                     onClick={() => deleteGuestEvent(event.id)}
                     aria-label="Delete event"
                     title="Delete event"
                   >
-                    🗑
+                    <TrashIcon />
                   </button>
                   <div className="event-info">
                     <h3>{event.name}</h3>
@@ -1844,12 +1855,12 @@ function EventsPage() {
               {events.map((event) => (
                 <div key={event.id} className="event-item card">
                   <button
-                    className="danger-btn corner-delete-btn"
+                    className="danger-btn corner-delete-btn icon-btn"
                     onClick={() => deleteEvent(event.id)}
                     aria-label="Delete event"
                     title="Delete event"
                   >
-                    🗑
+                    <TrashIcon />
                   </button>
                   <div className="event-info">
                     <h3>{event.name}</h3>
@@ -2040,9 +2051,11 @@ function RacePatrolsPage() {
                 <h3 style={{ margin: 0 }}>{p.name}</h3>
                 <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
               </div>
-              <div className="inline-actions">
+              <div className="inline-actions patrol-actions">
                 <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>
-                <button className="danger-btn" onClick={() => void deletePatrol(p.id)}>Delete</button>
+                <button className="danger-btn icon-btn" onClick={() => void deletePatrol(p.id)} aria-label="Delete patrol" title="Delete">
+                  <TrashIcon />
+                </button>
               </div>
             </div>
           ))}

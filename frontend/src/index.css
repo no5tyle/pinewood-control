@@ -1244,6 +1244,10 @@ label {
   flex-wrap: wrap;
 }
 
+.patrol-actions {
+  align-items: center;
+}
+
 .secondary-btn {
   background: var(--bg-soft);
   color: var(--text);
@@ -1257,6 +1261,21 @@ label {
 
 .danger-btn:hover {
   background: #fecaca;
+}
+
+.icon-btn {
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.icon-btn svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  display: block;
 }
 
 .entry-remove {
