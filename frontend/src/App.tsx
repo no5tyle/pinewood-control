@@ -552,8 +552,7 @@ function KioskBootPage() {
   return (
     <main className="home-page">
       <AppHeader />
-      <section className="card success" style={{ textAlign: "center", padding: "4rem 2rem", position: "relative" }}>
-        <button className="close-overlay" onClick={() => navigate(-1)} aria-label="Close">×</button>
+      <section className="card success" style={{ textAlign: "center", padding: "4rem 2rem" }}>
         <h1>Pinewood Derby Control</h1>
         <p>Ready to start a new tournament?</p>
         <button onClick={startKiosk} disabled={loading} style={{ fontSize: "1.5rem", padding: "1rem 2rem" }}>
@@ -1117,7 +1116,8 @@ function KioskPage() {
       
       {isNewEvent ? (
         <div className="kiosk-naming-overlay">
-          <section className="card">
+          <section className="card" style={{ position: "relative" }}>
+            <button className="close-overlay" onClick={() => navigate(-1)} aria-label="Close">×</button>
             <h2>Welcome to Pinewood Derby</h2>
             <p>To get started, please give this event a name.</p>
             <form onSubmit={handleNameSubmit} className="stack">
