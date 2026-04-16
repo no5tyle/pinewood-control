@@ -154,7 +154,7 @@ input {
 
 button {
   border: none;
-  border-radius: 0.25rem;
+  border-radius: 0.4rem;
   background: var(--button-bg);
   color: var(--button-text);
   padding: 0.85rem 1rem;
@@ -162,6 +162,13 @@ button {
   border: 2px solid rgba(0, 0, 0, 0.15);
   font-weight: 700;
   letter-spacing: 0.01em;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--button-bg);
+  outline-offset: 2px;
 }
 
 button:disabled {
@@ -173,7 +180,7 @@ input {
   width: 100%;
   padding: 0.75rem;
   border: 2px solid var(--card-border);
-  border-radius: 0.25rem;
+  border-radius: 0.4rem;
   background: var(--bg-soft);
   color: var(--text);
 }
@@ -200,6 +207,16 @@ input {
 
   .desktop-only {
     display: none;
+  }
+
+  .profile-btn {
+    padding: 0.25rem 0.6rem;
+    font-size: 0.7rem;
+  }
+
+  .profile-icon {
+    width: 1.15rem;
+    height: 1.15rem;
   }
 }
 
@@ -560,6 +577,8 @@ label {
   margin-top: 0.5rem;
   padding-top: 0.75rem;
   border-top: 1px solid var(--card-border);
+  display: grid;
+  gap: 0.5rem;
 }
 
 .quickstart-overlay {
@@ -712,6 +731,19 @@ label {
 
 .kiosk-share-btn.copied {
   opacity: 0.95;
+}
+
+.kiosk-share-icon {
+  display: inline-grid;
+  place-items: center;
+  margin-right: 0.25rem;
+  vertical-align: middle;
+}
+
+.kiosk-share-icon svg {
+  width: 0.95rem;
+  height: 0.95rem;
+  display: block;
 }
 
 .relink-btn {
@@ -965,7 +997,16 @@ label {
 }
 
 .configuring-icon {
-  font-size: 5rem;
+  width: 5rem;
+  height: 5rem;
+  display: grid;
+  place-items: center;
+}
+
+.configuring-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
   animation: spin 4s linear infinite;
 }
 
@@ -1321,8 +1362,17 @@ label {
 }
 
 .champion-badge {
-  font-size: 4rem;
+  width: 4rem;
+  height: 4rem;
+  display: grid;
+  place-items: center;
   margin-bottom: 1rem;
+}
+
+.champion-badge svg {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .champion-name {

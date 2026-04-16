@@ -114,6 +114,14 @@ function safeParseStorageJSON<T>(value: string | null, fallback: T): T {
   }
 }
 
+async function copyToClipboardWithFallback(text: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    window.prompt("Copy this:", text);
+  }
+}
+
 function getLocalGuestEventIds(): string[] {
   const ids = safeParseStorageJSON<string[]>(window.localStorage.getItem(guestEventStorageKey), []);
   return ids.filter((id) => typeof id === "string" && id.length > 0);
@@ -329,33 +337,38 @@ function PageTitle() {
 function QuickStartOverlay() {
   const navigate = useNavigate();
   const location = useLocation();
-  const [open, setOpen] = useState(false);
+  const [forcedOpen, setForcedOpen] = useState(false);
+
+  const close = useCallback(() => {
+    window.localStorage.setItem(quickStartDismissedStorageKey, "1");
+    setForcedOpen(false);
+  }, []);
+
+  const dismissed = window.localStorage.getItem(quickStartDismissedStorageKey) === "1";
+  const autoOpen = !dismissed && (location.pathname === "/" || location.pathname === "/events");
+  const open = forcedOpen || autoOpen;
 
   useEffect(() => {
-    const dismissed = window.localStorage.getItem(quickStartDismissedStorageKey);
-    if (dismissed === "1") return;
-    if (location.pathname === "/" || location.pathname === "/events") {
-      setOpen(true);
-    }
-  }, [location.pathname]);
-
-  useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => setForcedOpen(true);
     window.addEventListener(quickStartOpenEventName, onOpen);
     return () => window.removeEventListener(quickStartOpenEventName, onOpen);
   }, []);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, close]);
 
-  const close = () => {
-    window.localStorage.setItem(quickStartDismissedStorageKey, "1");
-    setOpen(false);
-  };
+  if (!open) return null;
 
   return (
     <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Quick start guide">
       <section className="card quickstart-card">
-        <button className="close-overlay" onClick={close} aria-label="Close">×</button>
+        <button className="close-overlay" onClick={close} aria-label="Close" autoFocus>×</button>
         <h2 style={{ margin: 0 }}>Quick Start</h2>
         <p className="muted" style={{ margin: 0 }}>
           Create an event, link an operator device, then run heats and submit results.
@@ -379,20 +392,29 @@ function QuickStartOverlay() {
 function DonateOverlay() {
   const [open, setOpen] = useState(false);
 
+  const close = useCallback(() => setOpen(false), []);
+
   useEffect(() => {
     const onOpen = () => setOpen(true);
     window.addEventListener(donateOpenEventName, onOpen);
     return () => window.removeEventListener(donateOpenEventName, onOpen);
   }, []);
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, close]);
 
-  const close = () => setOpen(false);
+  if (!open) return null;
 
   return (
     <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Support Pinewood Controller">
       <section className="card quickstart-card">
-        <button className="close-overlay" onClick={close} aria-label="Close">×</button>
+        <button className="close-overlay" onClick={close} aria-label="Close" autoFocus>×</button>
         <h2 style={{ margin: 0 }}>Support this project</h2>
         <p className="muted" style={{ margin: 0 }}>
           Donations are used to cover server hosting and, beyond that, other scouting-related things.
@@ -459,7 +481,8 @@ function HelpPage() {
           <li>Each heat awards points by finish position: 1st = 0 points, 2nd = 1 point, 3rd = 2 points, etc.</li>
           <li>Total points accumulate across heats.</li>
           <li>A racer is eliminated when points are greater than or equal to the event point limit.</li>
-          <li>Standings sort by: not eliminated first, then lowest points, then name.</li>
+          <li>Standings sort by: not eliminated first.</li>
+          <li>Eliminated racers are ranked by who survived longer (eliminated later ranks higher), then lowest points, then name.</li>
         </ul>
       </section>
 
@@ -512,7 +535,7 @@ function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api<{ token: string; user: any }>("/auth/login", {
+      const res = await api<{ token: string; user: { id: string; email: string; name?: string } }>("/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
@@ -553,7 +576,7 @@ function SignupPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     try {
-      const res = await api<{ token: string; user: any }>("/auth/register", {
+      const res = await api<{ token: string; user: { id: string; email: string; name?: string } }>("/auth/register", {
         method: "POST",
         body: JSON.stringify({ email, password, name }),
       });
@@ -584,9 +607,45 @@ function SignupPage() {
   );
 }
 
-function AppHeader({ onRelink }: { onRelink?: () => void }) {
-  const { user, logout } = useAuth();
-  const TrophyIcon = () => (
+function LinkIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M10.59 13.41a1 1 0 0 1 0-1.41l3.3-3.3a3 3 0 0 1 4.24 4.24l-2.83 2.83a3.5 3.5 0 0 1-4.95 0 1 1 0 1 1 1.41-1.41 1.5 1.5 0 0 0 2.12 0l2.83-2.83a1 1 0 1 0-1.41-1.41l-3.3 3.3a1 1 0 0 1-1.41 0Z"
+      />
+      <path
+        fill="currentColor"
+        d="M13.41 10.59a1 1 0 0 1 0 1.41l-3.3 3.3a3 3 0 0 1-4.24-4.24l2.83-2.83a3.5 3.5 0 0 1 4.95 0 1 1 0 0 1-1.41 1.41 1.5 1.5 0 0 0-2.12 0L7.29 11.5a1 1 0 1 0 1.41 1.41l3.3-3.3a1 1 0 0 1 1.41 0Z"
+      />
+    </svg>
+  );
+}
+
+function HelpIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm0-5a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 12 15Zm0-10a4 4 0 0 0-4 4 1 1 0 1 0 2 0 2 2 0 1 1 3.2 1.6c-.87.65-1.2 1.17-1.2 2.4a1 1 0 1 0 2 0c0-.63.14-.88.8-1.38A4 4 0 0 0 12 5Z"
+      />
+    </svg>
+  );
+}
+
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 21s-7-4.35-9.33-8.46C.76 9.06 2.2 5.5 5.9 4.6c1.9-.46 3.7.2 4.96 1.6 1.26-1.4 3.06-2.06 4.96-1.6 3.7.9 5.14 4.46 3.23 7.94C19 16.65 12 21 12 21Z"
+      />
+    </svg>
+  );
+}
+
+function TrophyIcon() {
+  return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path
         fill="currentColor"
@@ -594,13 +653,17 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
       />
     </svg>
   );
+}
+
+function AppHeader({ onRelink }: { onRelink?: () => void }) {
+  const { user, logout } = useAuth();
   return (
     <header className="app-header">
       <Link to="/" className="app-brand">Pinewood Control</Link>
       <div className="app-header-actions">
         {onRelink ? (
           <button className="profile-btn relink-btn" onClick={onRelink} aria-label="Re-pair device">
-            <span className="profile-icon" aria-hidden="true">🔗</span>
+            <span className="profile-icon" aria-hidden="true"><LinkIcon /></span>
             <span>Re-pair</span>
           </button>
         ) : null}
@@ -614,7 +677,7 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
           aria-label="Help"
           onClick={() => window.dispatchEvent(new Event(quickStartOpenEventName))}
         >
-          <span className="profile-icon" aria-hidden="true">?</span>
+          <span className="profile-icon" aria-hidden="true"><HelpIcon /></span>
           <span>Help</span>
         </button>
         <button
@@ -623,7 +686,7 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
           aria-label="Donate"
           onClick={() => window.dispatchEvent(new Event(donateOpenEventName))}
         >
-          <span className="profile-icon" aria-hidden="true">♥</span>
+          <span className="profile-icon" aria-hidden="true"><HeartIcon /></span>
           <span>Donate</span>
         </button>
         {user ? (
@@ -994,17 +1057,17 @@ function AddScoutsPage() {
     if (isAuthRequiredError(eventError)) return <AuthRequiredPage message={eventError} />;
     return <main className="home-page"><p className="error">{eventError}</p></main>;
   }
-  if (!event) return <main className="home-page"><p>Loading contestants...</p></main>;
+  if (!event) return <main className="home-page"><p>Loading racers...</p></main>;
 
   return (
     <main className="home-page">
-      <h1>Add Contestants</h1>
+      <h1>Add Racers</h1>
       <form className="card" onSubmit={addScout}>
         <h2>Add Racer</h2>
         <label>Racer<input value={scoutName} onChange={(e) => setScoutName(e.target.value)} required /></label>
         <label>Group / Patrol / Den (optional)<input value={groupName} onChange={(e) => setGroupName(e.target.value)} /></label>
         <label>Weight ({event.weightUnit === "oz" ? "oz" : "g"}) (optional)<input type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} /></label>
-        <button type="submit">Add contestant</button>
+        <button type="submit">Add racer</button>
       </form>
 
       <section className="card">
@@ -1067,6 +1130,15 @@ function RaceControlPage() {
   useEffect(() => {
     setFinishOrder([]);
   }, [currentHeat?.id]);
+
+  useEffect(() => {
+    if (!showLateEntrant) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowLateEntrant(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showLateEntrant]);
 
   const refreshPopularVote = useCallback(async () => {
     if (!event?.id) return;
@@ -1440,12 +1512,15 @@ function KioskPage() {
   const [sessionError, setSessionError] = useState("");
   const [showPairing, setShowPairing] = useState(true);
   const [newName, setNewName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
   const [namingError, setNamingError] = useState("");
   const [previousWinner, setPreviousWinner] = useState<Scout | null>(null);
   const [showWinnerOverlay, setShowWinnerOverlay] = useState(false);
   const [lastActiveHeatId, setLastActiveHeatId] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<"idle" | "copying" | "copied">("idle");
   const shareTimerRef = useRef<number | null>(null);
+  const [pairingCopied, setPairingCopied] = useState<null | "code" | "url">(null);
+  const pairingCopyTimerRef = useRef<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const isNewEvent = eventId === "new" || (event?.name === "New Pinewood Derby Event" && !event?.setupComplete);
@@ -1454,8 +1529,18 @@ function KioskPage() {
   useEffect(() => {
     return () => {
       if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
+      if (pairingCopyTimerRef.current) window.clearTimeout(pairingCopyTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showPairing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowPairing(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showPairing]);
 
   useEffect(() => {
     if (!event?.popularVoteRevealAt) return;
@@ -1473,18 +1558,32 @@ function KioskPage() {
       try {
         const res = await api<{ token: string; expiresAt: number }>(`/events/${event.id}/guest-kiosk-link`, { method: "POST" });
         url = `${base}/guest-kiosk/${res.token}`;
-      } catch {}
+      } catch {
+        void 0;
+      }
     }
 
-    try {
-      await navigator.clipboard.writeText(url);
-    } catch {
-      window.prompt("Copy this link:", url);
-    }
+    await copyToClipboardWithFallback(url);
 
     setShareStatus("copied");
     if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
     shareTimerRef.current = window.setTimeout(() => setShareStatus("idle"), 1500);
+  };
+
+  const copyPairingCode = async () => {
+    if (!pairingCode) return;
+    await copyToClipboardWithFallback(pairingCode);
+    setPairingCopied("code");
+    if (pairingCopyTimerRef.current) window.clearTimeout(pairingCopyTimerRef.current);
+    pairingCopyTimerRef.current = window.setTimeout(() => setPairingCopied(null), 1500);
+  };
+
+  const copyPairingLink = async () => {
+    if (!qrUrl) return;
+    await copyToClipboardWithFallback(qrUrl);
+    setPairingCopied("url");
+    if (pairingCopyTimerRef.current) window.clearTimeout(pairingCopyTimerRef.current);
+    pairingCopyTimerRef.current = window.setTimeout(() => setPairingCopied(null), 1500);
   };
 
   const claimEvent = async () => {
@@ -1499,19 +1598,16 @@ function KioskPage() {
     }
   };
 
-  useEffect(() => {
-    if (event?.name && event.name !== "New Pinewood Derby Event") {
-      setNewName(event.name);
-    }
-  }, [event?.name]);
-
   const handleNameSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!newName.trim() || !sessionToken) return;
+    const suggestedName =
+      event?.name && event.name !== "New Pinewood Derby Event" ? event.name : "";
+    const nameToSubmit = (nameTouched ? newName : suggestedName).trim();
+    if (!nameToSubmit || !sessionToken) return;
     try {
       const res = await api<EventState>(`/kiosk/sessions/${sessionToken}/create-event`, {
         method: "POST",
-        body: JSON.stringify({ name: newName, lanes: 4, pointLimit: 10 }),
+        body: JSON.stringify({ name: nameToSubmit, lanes: 4, pointLimit: 10 }),
       });
       setEvent(res);
       if (!user || res.isGuest) addLocalGuestEventId(res.id);
@@ -1586,11 +1682,7 @@ function KioskPage() {
 
   useEffect(() => {
     if (!event) return;
-    if (event.isComplete) {
-      if (showWinnerOverlay) setShowWinnerOverlay(false);
-      if (previousWinner) setPreviousWinner(null);
-      return;
-    }
+    if (event.isComplete) return;
     
     // Check if the heat we were tracking just finished
     const justFinished = event.heats.find(h => h.id === lastActiveHeatId && h.winnerScoutId);
@@ -1608,7 +1700,7 @@ function KioskPage() {
     if (currentHeat?.id && currentHeat.id !== lastActiveHeatId && !showWinnerOverlay) {
       setLastActiveHeatId(currentHeat.id);
     }
-  }, [event?.heats, currentHeat?.id, lastActiveHeatId, scoutMap, showWinnerOverlay]);
+  }, [event, currentHeat?.id, lastActiveHeatId, scoutMap, showWinnerOverlay]);
 
   useEffect(() => {
     if (showWinnerOverlay) {
@@ -1642,8 +1734,11 @@ function KioskPage() {
               <label>
                 Event Name
                 <input 
-                  value={newName} 
-                  onChange={(e) => setNewName(e.target.value)} 
+                  value={nameTouched ? newName : (event?.name && event.name !== "New Pinewood Derby Event" ? event.name : "")}
+                  onChange={(e) => {
+                    setNameTouched(true);
+                    setNewName(e.target.value);
+                  }}
                   placeholder="e.g. Pack 123 Annual Race" 
                   required 
                   autoFocus 
@@ -1671,7 +1766,14 @@ function KioskPage() {
             
             {!event.setupComplete ? (
               <div className="kiosk-configuring">
-                <div className="configuring-icon">⚙️</div>
+                <div className="configuring-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path
+                      fill="currentColor"
+                      d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.6-.22l-2.39.96a7.03 7.03 0 0 0-1.63-.94l-.36-2.54A.5.5 0 0 0 14.9 1h-3.8a.5.5 0 0 0-.49.42l-.36 2.54c-.58.22-1.12.53-1.63.94l-2.39-.96a.5.5 0 0 0-.6.22L3.71 7.48a.5.5 0 0 0 .12.64l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94L3.83 14.52a.5.5 0 0 0-.12.64l1.92 3.32c.13.22.39.3.6.22l2.39-.96c.5.41 1.05.72 1.63.94l.36 2.54c.04.24.25.42.49.42h3.8c.24 0 .45-.18.49-.42l.36-2.54c.58-.22 1.12-.53 1.63-.94l2.39.96c.22.09.47 0 .6-.22l1.92-3.32a.5.5 0 0 0-.12-.64l-2.03-1.58ZM12 15.5A3.5 3.5 0 1 1 12 8a3.5 3.5 0 0 1 0 7.5Z"
+                    />
+                  </svg>
+                </div>
                 <h2>Configuring Event</h2>
                 <p>Please wait while the operator finishes setup.</p>
               </div>
@@ -1788,6 +1890,12 @@ function KioskPage() {
               {qrUrl ? <div className="overlay-note" style={{ wordBreak: "break-all" }}>{qrUrl}</div> : null}
               <p className="overlay-note">Scan QR and enter code to link device</p>
               <div className="overlay-actions">
+                <button type="button" className="secondary-btn" onClick={() => void copyPairingCode()} disabled={!pairingCode}>
+                  {pairingCopied === "code" ? "✓ Copied code" : "Copy code"}
+                </button>
+                <button type="button" className="secondary-btn" onClick={() => void copyPairingLink()} disabled={!qrUrl}>
+                  {pairingCopied === "url" ? "✓ Copied link" : "Copy link"}
+                </button>
                 <a href={`/pair/${qrToken}?code=${pairingCode}`} target="_blank" rel="noopener noreferrer" className="direct-link">
                   Open operator view on this device
                 </a>
@@ -1803,7 +1911,27 @@ function KioskPage() {
           disabled={shareStatus === "copying"}
           aria-label="Copy kiosk link"
         >
-          {shareStatus === "copied" ? "✓ Link copied" : shareStatus === "copying" ? "…" : "🔗 Link"}
+          {shareStatus === "copied" ? (
+            "✓ Link copied"
+          ) : shareStatus === "copying" ? (
+            "…"
+          ) : (
+            <>
+              <span className="kiosk-share-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    fill="currentColor"
+                    d="M10.59 13.41a1 1 0 0 1 0-1.41l3.3-3.3a3 3 0 0 1 4.24 4.24l-2.83 2.83a3.5 3.5 0 0 1-4.95 0 1 1 0 1 1 1.41-1.41 1.5 1.5 0 0 0 2.12 0l2.83-2.83a1 1 0 1 0-1.41-1.41l-3.3 3.3a1 1 0 0 1-1.41 0Z"
+                  />
+                  <path
+                    fill="currentColor"
+                    d="M13.41 10.59a1 1 0 0 1 0 1.41l-3.3 3.3a3 3 0 0 1-4.24-4.24l2.83-2.83a3.5 3.5 0 0 1 4.95 0 1 1 0 0 1-1.41 1.41 1.5 1.5 0 0 0-2.12 0L7.29 11.5a1 1 0 1 0 1.41 1.41l3.3-3.3a1 1 0 0 1 1.41 0Z"
+                  />
+                </svg>
+              </span>
+              Link
+            </>
+          )}
         </button>
       ) : null}
     </main>
@@ -2244,26 +2372,13 @@ function ResultsPage() {
   const [results, setResults] = useState<EventResults | null>(null);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!eventId) return;
-    api<EventResults>(`/events/${eventId}/results`)
-      .then(setResults)
-      .catch((e: Error) => setError(e.message));
-  }, [eventId]);
-
-  if (!eventId) return <Navigate to="/" replace />;
-  if (error) {
-    if (isAuthRequiredError(error)) return <AuthRequiredPage message={error} />;
-    return <main className="home-page"><p className="error">{error}</p></main>;
-  }
-  if (!results) return <main className="home-page"><p>Loading results...</p></main>;
-
-  const heatResultsSorted = useMemo(
-    () => [...results.heatResults].sort((a, b) => a.createdAt - b.createdAt),
-    [results.heatResults]
-  );
+  const heatResultsSorted = useMemo(() => {
+    if (!results) return [];
+    return [...results.heatResults].sort((a, b) => a.createdAt - b.createdAt);
+  }, [results]);
 
   const pointsAfterByHeatId = useMemo(() => {
+    if (!results) return new Map<string, Map<string, number>>();
     const finalPointsById = new Map(results.event.scouts.map((s) => [s.id, s.points]));
     const gainedById = new Map<string, number>();
     heatResultsSorted.forEach((heat) => {
@@ -2298,14 +2413,35 @@ function ResultsPage() {
     });
 
     return out;
-  }, [heatResultsSorted, results.event.scouts]);
+  }, [heatResultsSorted, results]);
+
+  useEffect(() => {
+    if (!eventId) return;
+    api<EventResults>(`/events/${eventId}/results`)
+      .then(setResults)
+      .catch((e: Error) => setError(e.message));
+  }, [eventId]);
+
+  if (!eventId) return <Navigate to="/" replace />;
+  if (error) {
+    if (isAuthRequiredError(error)) return <AuthRequiredPage message={error} />;
+    return <main className="home-page"><p className="error">{error}</p></main>;
+  }
+  if (!results) return <main className="home-page"><p>Loading results...</p></main>;
 
   return (
     <main className="home-page">
       <AppHeader />
       <div className="results-container">
         <section className="card success results-hero">
-          <div className="champion-badge">🏆</div>
+          <div className="champion-badge" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                fill="currentColor"
+                d="M6 2h12v2h3v4c0 3.3-2.7 6-6 6h-.2A6.02 6.02 0 0 1 13 15.66V18h4v2H7v-2h4v-2.34A6.02 6.02 0 0 1 9.2 14H9c-3.3 0-6-2.7-6-6V4h3V2Zm2 2v7c0 2.2 1.8 4 4 4s4-1.8 4-4V4H8Zm11 2h-1v5.1c1.2-.6 2-1.9 2-3.4V6ZM6 11.1V6H5v1.7c0 1.5.8 2.8 2 3.4Z"
+              />
+            </svg>
+          </div>
           <h1>{results.event.name}</h1>
           <div className="champion-name">
             Champion:{" "}

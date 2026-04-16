@@ -16,18 +16,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function getApiOrigin(): string {
+  const value = import.meta.env.VITE_API_ORIGIN as string | undefined;
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  return trimmed.replace(/\/+$/, "");
+}
+
+const apiOrigin = getApiOrigin();
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(localStorage.getItem("auth_token"));
   const [isLoading, setIsLoading] = useState(true);
-
-  const apiOrigin = (() => {
-    const value = import.meta.env.VITE_API_ORIGIN as string | undefined;
-    if (!value) return "";
-    const trimmed = value.trim();
-    if (!trimmed) return "";
-    return trimmed.replace(/\/+$/, "");
-  })();
 
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token");
