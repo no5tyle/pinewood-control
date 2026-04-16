@@ -82,6 +82,7 @@ const socket = socketIOClient(apiOrigin || "/");
 const kioskSessionStorageKey = "pinewood_kiosk_session";
 const guestEventStorageKey = "pinewood_guest_event_ids";
 const guestAccessUrlStorageKey = "pinewood_guest_access_urls";
+const quickStartDismissedStorageKey = "pinewood_quickstart_dismissed_v1";
 type ThemeName = "system" | "scouts-au-cubs" | "scouts-green" | "scouts-joeys" | "scouts-america";
 
 function safeParseStorageJSON<T>(value: string | null, fallback: T): T {
@@ -272,6 +273,49 @@ function PageTitle() {
   }, [location.pathname]);
 
   return null;
+}
+
+function QuickStartOverlay() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const dismissed = window.localStorage.getItem(quickStartDismissedStorageKey);
+    if (dismissed === "1") return;
+    setOpen(true);
+  }, []);
+
+  if (!open) return null;
+  if (!(location.pathname === "/" || location.pathname === "/events")) return null;
+
+  const close = () => {
+    window.localStorage.setItem(quickStartDismissedStorageKey, "1");
+    setOpen(false);
+  };
+
+  return (
+    <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Quick start guide">
+      <section className="card quickstart-card">
+        <button className="close-overlay" onClick={close} aria-label="Close">×</button>
+        <h2 style={{ margin: 0 }}>Quick Start</h2>
+        <p className="muted" style={{ margin: 0 }}>
+          Create an event, link an operator device, then run heats and submit results.
+        </p>
+        <ol className="quickstart-steps">
+          <li>Create an event (guest or signed-in).</li>
+          <li>Open the Kiosk on the display device.</li>
+          <li>Link the operator device by scanning the QR and entering the pairing code.</li>
+          <li>Add racers, generate heats, then submit the full finish order after each race.</li>
+        </ol>
+        <div className="quickstart-actions">
+          <button className="secondary-btn" onClick={() => { close(); navigate("/help"); }}>Help</button>
+          <div style={{ flex: 1 }} />
+          <button onClick={close}>Get Started</button>
+        </div>
+      </section>
+    </div>
+  );
 }
 
 function HelpPage() {
@@ -1735,6 +1779,7 @@ export default function App() {
       <BrowserRouter>
         <ClaimLocalGuestEventsOnAuth />
         <PageTitle />
+        <QuickStartOverlay />
         <Routes>
           <Route path="/" element={<KioskBootPage />} />
           <Route path="/help" element={<HelpPage />} />

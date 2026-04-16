@@ -477,6 +477,37 @@ label {
   border-top: 1px solid var(--card-border);
 }
 
+.quickstart-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 500;
+}
+
+.quickstart-card {
+  width: 100%;
+  max-width: 640px;
+  display: grid;
+  gap: 0.9rem;
+  position: relative;
+}
+
+.quickstart-steps {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.quickstart-actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
 .direct-link {
   font-size: 0.8rem;
   color: var(--link);
