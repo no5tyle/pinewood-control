@@ -347,10 +347,19 @@ async function getEventWithDetails(eventId: string) {
 function sortStandings(scouts: any[]): any[] {
   return [...scouts].sort((a, b) => {
     if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+
+    if (!a.eliminated && !b.eliminated) {
+      if (a.points !== b.points) return a.points - b.points;
+      const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+      const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+      if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+      return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+    }
+
+    const aElimAt = a.eliminatedAt ? new Date(a.eliminatedAt).getTime() : 0;
+    const bElimAt = b.eliminatedAt ? new Date(b.eliminatedAt).getTime() : 0;
+    if (aElimAt !== bElimAt) return bElimAt - aElimAt;
     if (a.points !== b.points) return a.points - b.points;
-    const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
-    const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
-    if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
     return String(a.name ?? "").localeCompare(String(b.name ?? ""));
   });
 }
@@ -358,7 +367,9 @@ function sortStandings(scouts: any[]): any[] {
 function serializeEvent(event: any) {
   const scouts = event.scouts.map((s: any) => ({
     ...s,
-    laneHistory: safeParseJSON<number[]>(s.laneHistory, [])
+    laneHistory: safeParseJSON<number[]>(s.laneHistory, []),
+    eliminatedAt: s.eliminatedAt ? s.eliminatedAt.getTime() : null,
+    eliminatedHeatId: s.eliminatedHeatId ?? null,
   }));
   
   const active = scouts.filter((s: any) => !s.eliminated);
@@ -933,6 +944,7 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
     }, 0);
     const carNumber = String(maxCarNumber + 1);
     const pointsPenalty = parsed.data.pointsPenalty ?? 0;
+    const startsEliminated = pointsPenalty >= event.pointLimit;
     const scout = await prisma.scout.create({
       data: {
         id: nanoid(10),
@@ -941,7 +953,8 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
         groupName: parsed.data.groupName ?? null,
         weight: parsed.data.weight ?? null,
         points: pointsPenalty,
-        eliminated: pointsPenalty >= event.pointLimit,
+        eliminated: startsEliminated,
+        eliminatedAt: startsEliminated ? new Date() : null,
         eventId: req.params.eventId,
       }
     });
@@ -1022,6 +1035,8 @@ app.post("/api/events/:eventId/heats/:heatId/result", async (req, res) => {
       }
     });
 
+    const eliminationMoment = new Date();
+
     // Update points for everyone in the heat
     for (let position = 0; position < finishOrder.length; position += 1) {
       const scoutId = finishOrder[position];
@@ -1029,12 +1044,15 @@ app.post("/api/events/:eventId/heats/:heatId/result", async (req, res) => {
       if (!scout) continue;
 
       const newPoints = scout.points + position;
+      const justEliminated = !scout.eliminated && newPoints >= event.pointLimit;
       await prisma.scout.update({
         where: { id: scoutId },
         data: {
           points: newPoints,
-          eliminated: newPoints >= event.pointLimit
-        }
+          eliminated: newPoints >= event.pointLimit,
+          eliminatedAt: justEliminated ? eliminationMoment : undefined,
+          eliminatedHeatId: justEliminated ? heat.id : undefined,
+        },
       });
     }
 
@@ -1191,19 +1209,22 @@ app.get("/api/events/:eventId/results", async (req, res) => {
     const access = await requireEventReadAccess(req as AuthRequest, res, req.params.eventId);
     if (!access) return;
     const event = await getEventWithDetails(req.params.eventId);
-    const scoutsById = new Map(event.scouts.map((s) => [s.id, s]));
     const serialized = serializeEvent(event);
+    const serializedScoutsById = new Map(serialized.scouts.map((s: any) => [s.id, s]));
     
     return res.json({
       event: serialized,
       completedAt: event.completedAt?.getTime() ?? null,
-      champion: serialized.championScoutId ? scoutsById.get(serialized.championScoutId) : null,
+      champion: serialized.championScoutId ? serializedScoutsById.get(serialized.championScoutId) ?? null : null,
       heatResults: event.heats.map((heat: any) => ({
         id: heat.id,
         createdAt: heat.createdAt.getTime(),
+        eliminatedScoutIds: serialized.scouts
+          .filter((s: any) => s.eliminatedHeatId === heat.id)
+          .map((s: any) => s.id),
         placements: safeParseJSON<string[]>(heat.finishOrder, []).map((scoutId, index) => ({
           place: index + 1,
-          scout: scoutsById.get(scoutId) ?? null,
+          scout: serializedScoutsById.get(scoutId) ?? null,
         })),
         winnerScoutId: heat.winnerScoutId ?? null,
         loserScoutIds: safeParseJSON<string[]>(heat.loserScoutIds, []),

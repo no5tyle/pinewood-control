@@ -51,12 +51,15 @@ model Scout {
   weight      Float?
   points      Int      @default(0)
   eliminated  Boolean  @default(false)
+  eliminatedAt DateTime?
+  eliminatedHeatId String?
   laneHistory String   @default("[]") // JSON array of lane numbers
   
   eventId     String
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   
   wonHeats    Heat[]   @relation("HeatWinner")
+  eliminatedHeat Heat? @relation("HeatElimination", fields: [eliminatedHeatId], references: [id], onDelete: SetNull)
 }
 
 model Heat {
@@ -72,6 +75,7 @@ model Heat {
   winnerScout     Scout?   @relation("HeatWinner", fields: [winnerScoutId], references: [id])
   
   loserScoutIds   String   @default("[]") // JSON array of scout IDs
+  eliminatedScouts Scout[] @relation("HeatElimination")
 }
 
 model KioskSession {

@@ -21,6 +21,8 @@ type Scout = {
   carNumber: string;
   groupName?: string | null;
   weight?: number | null;
+  eliminatedAt?: number | null;
+  eliminatedHeatId?: string | null;
   points: number;
   eliminated: boolean;
 };
@@ -62,6 +64,7 @@ type EventResults = {
   heatResults: Array<{
     id: string;
     createdAt: number;
+    eliminatedScoutIds: string[];
     placements: Array<{ place: number; scout: Scout | null }>;
     winnerScoutId: string | null;
     loserScoutIds: string[];
@@ -2015,7 +2018,10 @@ function ResultsPage() {
           <div className="champion-badge">🏆</div>
           <h1>{results.event.name}</h1>
           <div className="champion-name">
-            Champion: <strong>{results.champion?.name ?? "TBD"}</strong>
+            Champion:{" "}
+            <strong>
+              {results.champion ? `#${results.champion.carNumber} ${results.champion.name}` : "TBD"}
+            </strong>
           </div>
           <div className="event-stats">
             <span><strong>{results.heatResults.length}</strong> Heats</span>
@@ -2029,8 +2035,11 @@ function ResultsPage() {
             {results.event.standings.map((scout, index) => (
               <div key={scout.id} className={`standings-item ${index < 3 ? `rank-${index + 1}` : ""}`}>
                 <span className="rank">{index + 1}</span>
-                <span className="scout-name">{scout.name}</span>
-                <span className="car-number">#{scout.carNumber}</span>
+                <span className="scout-name">
+                  <strong>#{scout.carNumber}</strong> {scout.name}
+                  {scout.groupName ? <span className="muted"> ({scout.groupName})</span> : null}
+                </span>
+                <span className="car-number">{scout.eliminated ? "Out" : ""}</span>
               </div>
             ))}
           </div>
@@ -2053,8 +2062,10 @@ function ResultsPage() {
                     {heat.placements.map((placement) => (
                       <li key={`${heat.id}-${placement.place}`}>
                         <span className="place-chip">#{placement.place}</span>
-                        <span>{placement.scout?.name ?? "Unknown"}</span>
-                        {placement.scout?.carNumber ? <span className="muted">#{placement.scout.carNumber}</span> : null}
+                        <span className={placement.scout && heat.eliminatedScoutIds.includes(placement.scout.id) ? "eliminated-strike" : ""}>
+                          {placement.scout ? `#${placement.scout.carNumber} ${placement.scout.name}` : "Unknown"}
+                          {placement.scout?.groupName ? ` (${placement.scout.groupName})` : ""}
+                        </span>
                       </li>
                     ))}
                   </ol>
