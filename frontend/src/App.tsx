@@ -35,6 +35,20 @@ type Heat = {
   winnerScoutId?: string;
 };
 
+type RacePatrolRacer = {
+  id: string;
+  name: string;
+  groupName?: string | null;
+  weight?: number | null;
+};
+
+type RacePatrol = {
+  id: string;
+  name: string;
+  createdAt: number;
+  racers: RacePatrolRacer[];
+};
+
 type EventState = {
   id: string;
   name: string;
@@ -93,6 +107,10 @@ type EventResults = {
 
 type EventListResponse = {
   events: EventState[];
+};
+
+type RacePatrolListResponse = {
+  patrols: RacePatrol[];
 };
 
 function getApiOrigin(): string {
@@ -326,6 +344,7 @@ function PageTitle() {
 
     if (path === "/") pageName = "Home";
     else if (path === "/events") pageName = "My Events";
+    else if (path === "/patrols") pageName = "Race Patrols";
     else if (path === "/help") pageName = "Help";
     else if (path === "/login") pageName = "Login";
     else if (path === "/signup") pageName = "Signup";
@@ -703,6 +722,17 @@ function TrophyIcon() {
   );
 }
 
+function PatrolIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M16 11a4 4 0 1 0-8 0 4 4 0 0 0 8 0Zm-6 0a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm12 9a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1c0-3.3 2.7-6 6-6h8c3.3 0 6 2.7 6 6Zm-2-1a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4h16Z"
+      />
+    </svg>
+  );
+}
+
 function AppHeader({ onRelink }: { onRelink?: () => void }) {
   const { user, logout } = useAuth();
   return (
@@ -719,6 +749,12 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
           <span className="profile-icon" aria-hidden="true"><TrophyIcon /></span>
           <span>Events</span>
         </Link>
+        {user ? (
+          <Link to="/patrols" className="profile-btn" aria-label="Race patrols">
+            <span className="profile-icon" aria-hidden="true"><PatrolIcon /></span>
+            <span>Patrols</span>
+          </Link>
+        ) : null}
         <button
           type="button"
           className="profile-btn"
@@ -1061,11 +1097,17 @@ function ConfigurePage() {
 function AddScoutsPage() {
   const navigate = useNavigate();
   const { eventId } = useParams();
+  const { user } = useAuth();
   const { event, error: eventError } = useEvent(eventId);
   const [scoutName, setScoutName] = useState("");
   const [groupName, setGroupName] = useState("");
   const [weight, setWeight] = useState("");
   const [error, setError] = useState("");
+  const [patrols, setPatrols] = useState<RacePatrol[]>([]);
+  const [patrolLoading, setPatrolLoading] = useState(false);
+  const [patrolError, setPatrolError] = useState("");
+  const [selectedPatrolIds, setSelectedPatrolIds] = useState<string[]>([]);
+  const [importingPatrols, setImportingPatrols] = useState(false);
 
   const addScout = async (e: FormEvent) => {
     e.preventDefault();
@@ -1085,6 +1127,38 @@ function AddScoutsPage() {
       setWeight("");
     } catch (err) {
       setError((err as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    if (!user) return;
+    setPatrolLoading(true);
+    setPatrolError("");
+    api<RacePatrolListResponse>("/patrols")
+      .then((res) => setPatrols(res.patrols))
+      .catch((e: Error) => setPatrolError(e.message))
+      .finally(() => setPatrolLoading(false));
+  }, [user]);
+
+  const togglePatrol = (patrolId: string) => {
+    setSelectedPatrolIds((prev) => (prev.includes(patrolId) ? prev.filter((id) => id !== patrolId) : [...prev, patrolId]));
+  };
+
+  const importSelectedPatrols = async () => {
+    if (!eventId) return;
+    if (selectedPatrolIds.length === 0) return;
+    setImportingPatrols(true);
+    setError("");
+    try {
+      await api(`/events/${eventId}/scouts/import-patrols`, {
+        method: "POST",
+        body: JSON.stringify({ patrolIds: selectedPatrolIds }),
+      });
+      setSelectedPatrolIds([]);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setImportingPatrols(false);
     }
   };
 
@@ -1117,6 +1191,56 @@ function AddScoutsPage() {
         <label>Weight ({event.weightUnit === "oz" ? "oz" : "g"}) (optional)<input type="number" step="any" value={weight} onChange={(e) => setWeight(e.target.value)} /></label>
         <button type="submit">Add racer</button>
       </form>
+
+      {user ? (
+        <section className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+            <h2>Race Patrols</h2>
+            <Link to="/patrols" className="link-btn">Manage patrols</Link>
+          </div>
+          <p className="muted" style={{ margin: 0 }}>
+            Select one or more patrols to add all racers at once. The next block of car numbers is reserved, then randomly assigned within that block.
+          </p>
+          {patrolLoading ? <p className="muted">Loading patrols…</p> : null}
+          {patrolError ? <p className="error">{patrolError}</p> : null}
+          {!patrolLoading && patrols.length === 0 ? <p className="muted">No patrols yet.</p> : null}
+          {patrols.length > 0 ? (
+            <div className="stack" style={{ gap: "0.5rem" }}>
+              {patrols.map((p) => (
+                <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 700 }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedPatrolIds.includes(p.id)}
+                    onChange={() => togglePatrol(p.id)}
+                    style={{ width: "1.1rem", height: "1.1rem" }}
+                  />
+                  <span style={{ flex: 1 }}>
+                    {p.name} <span className="muted">({p.racers.length} racer{p.racers.length === 1 ? "" : "s"})</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          ) : null}
+          <div className="wizard-actions" style={{ marginTop: "0.5rem" }}>
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setSelectedPatrolIds([])}
+              disabled={selectedPatrolIds.length === 0 || importingPatrols}
+            >
+              Clear
+            </button>
+            <div style={{ flex: 1 }} />
+            <button
+              type="button"
+              onClick={() => void importSelectedPatrols()}
+              disabled={selectedPatrolIds.length === 0 || importingPatrols}
+            >
+              {importingPatrols ? "Adding…" : `Add ${selectedPatrolIds.length} patrol${selectedPatrolIds.length === 1 ? "" : "s"}`}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card">
         <h2>Current Entry List ({event.scouts.length})</h2>
@@ -2326,6 +2450,234 @@ function EventsPage() {
   );
 }
 
+function RacePatrolsPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [patrols, setPatrols] = useState<RacePatrol[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [patrolName, setPatrolName] = useState("");
+  const [racers, setRacers] = useState<Array<{ id: string; name: string; groupName: string; weight: string }>>([]);
+  const [saving, setSaving] = useState(false);
+
+  const loadPatrols = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
+    setError("");
+    try {
+      const res = await api<RacePatrolListResponse>("/patrols");
+      setPatrols(res.patrols);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    loadPatrols();
+  }, [loadPatrols]);
+
+  if (!user) return <AuthRequiredPage message="Login to manage Race Patrols." />;
+
+  const openNew = () => {
+    setEditingId(null);
+    setPatrolName("");
+    setRacers([{ id: crypto.randomUUID(), name: "", groupName: "", weight: "" }]);
+    setEditorOpen(true);
+    setError("");
+  };
+
+  const openEdit = (patrol: RacePatrol) => {
+    setEditingId(patrol.id);
+    setPatrolName(patrol.name);
+    setRacers(
+      patrol.racers.map((r) => ({
+        id: r.id,
+        name: r.name,
+        groupName: r.groupName ?? "",
+        weight: typeof r.weight === "number" ? String(r.weight) : "",
+      }))
+    );
+    setEditorOpen(true);
+    setError("");
+  };
+
+  const closeEditor = () => {
+    setEditorOpen(false);
+    setSaving(false);
+  };
+
+  const save = async () => {
+    const trimmedName = patrolName.trim();
+    const normalizedRacers = racers
+      .map((r) => ({
+        name: r.name.trim(),
+        groupName: r.groupName.trim(),
+        weight: r.weight.trim(),
+      }))
+      .filter((r) => r.name.length > 0);
+
+    if (trimmedName.length === 0) {
+      setError("Please enter a patrol name.");
+      return;
+    }
+    if (normalizedRacers.length === 0) {
+      setError("Please add at least one racer.");
+      return;
+    }
+
+    const payload = {
+      name: trimmedName,
+      racers: normalizedRacers.map((r) => {
+        const weightValue = r.weight.length > 0 ? Number(r.weight) : undefined;
+        return {
+          name: r.name,
+          groupName: r.groupName.length > 0 ? r.groupName : undefined,
+          weight: Number.isFinite(weightValue as number) ? weightValue : undefined,
+        };
+      }),
+    };
+
+    setSaving(true);
+    setError("");
+    try {
+      if (editingId) {
+        await api(`/patrols/${editingId}`, { method: "PATCH", body: JSON.stringify(payload) });
+      } else {
+        await api(`/patrols`, { method: "POST", body: JSON.stringify(payload) });
+      }
+      closeEditor();
+      await loadPatrols();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const deletePatrol = async (id: string) => {
+    if (!window.confirm("Delete this Race Patrol? This cannot be undone.")) return;
+    setError("");
+    try {
+      await api(`/patrols/${id}`, { method: "DELETE" });
+      await loadPatrols();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  return (
+    <main className="home-page">
+      <AppHeader />
+      <section className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+          <div>
+            <h1>Race Patrols</h1>
+            <p className="muted">Create reusable racer groups you can add to events in one action.</p>
+          </div>
+          <div className="inline-actions">
+            <button onClick={openNew}>New patrol</button>
+            <button className="secondary-btn" onClick={() => navigate("/events")}>Back to events</button>
+          </div>
+        </div>
+        {loading ? <p className="muted">Loading patrols…</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+      </section>
+
+      <section className="card">
+        <h2>Your Patrols</h2>
+        {patrols.length === 0 ? <p className="muted">No patrols yet.</p> : null}
+        <div className="event-list">
+          {patrols.map((p) => (
+            <div key={p.id} className="event-item card" style={{ gap: "0.5rem" }}>
+              <div className="event-info">
+                <h3 style={{ margin: 0 }}>{p.name}</h3>
+                <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
+              </div>
+              <div className="inline-actions">
+                <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>
+                <button className="danger-btn" onClick={() => void deletePatrol(p.id)}>Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {editorOpen ? (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit race patrol">
+          <section className="card modal-card">
+            <button className="close-overlay" onClick={closeEditor} aria-label="Close">×</button>
+            <h2>{editingId ? "Edit Patrol" : "New Patrol"}</h2>
+            <div className="stack">
+              <label>
+                Patrol name
+                <input value={patrolName} onChange={(e) => setPatrolName(e.target.value)} autoFocus required />
+              </label>
+              <div style={{ display: "grid", gap: "0.5rem" }}>
+                <div style={{ fontWeight: 800 }}>Racers</div>
+                {racers.map((r) => (
+                  <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 110px auto", gap: "0.5rem", alignItems: "end" }}>
+                    <label style={{ margin: 0 }}>
+                      Name
+                      <input
+                        value={r.name}
+                        onChange={(e) => setRacers((prev) => prev.map((x) => (x.id === r.id ? { ...x, name: e.target.value } : x)))}
+                        required
+                      />
+                    </label>
+                    <label style={{ margin: 0 }}>
+                      Group (optional)
+                      <input
+                        value={r.groupName}
+                        onChange={(e) => setRacers((prev) => prev.map((x) => (x.id === r.id ? { ...x, groupName: e.target.value } : x)))}
+                      />
+                    </label>
+                    <label style={{ margin: 0 }}>
+                      Weight
+                      <input
+                        type="number"
+                        step="any"
+                        value={r.weight}
+                        onChange={(e) => setRacers((prev) => prev.map((x) => (x.id === r.id ? { ...x, weight: e.target.value } : x)))}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      onClick={() => setRacers((prev) => prev.filter((x) => x.id !== r.id))}
+                      disabled={racers.length <= 1}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  onClick={() => setRacers((prev) => [...prev, { id: crypto.randomUUID(), name: "", groupName: "", weight: "" }])}
+                >
+                  Add racer
+                </button>
+              </div>
+              <div className="wizard-actions">
+                <button type="button" className="secondary-btn" onClick={closeEditor} disabled={saving}>Cancel</button>
+                <div style={{ flex: 1 }} />
+                <button type="button" onClick={() => void save()} disabled={saving}>
+                  {saving ? "Saving…" : "Save"}
+                </button>
+              </div>
+              {error ? <p className="error">{error}</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </main>
+  );
+}
+
 function GuestKioskRedeemPage() {
   const { token } = useParams();
   const navigate = useNavigate();
@@ -2730,6 +3082,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/events" element={<EventsPage />} />
+          <Route path="/patrols" element={<RacePatrolsPage />} />
           <Route path="/kiosk/:eventId" element={<KioskPage />} />
           <Route path="/guest-kiosk/:token" element={<GuestKioskRedeemPage />} />
           <Route path="/pair/:qrToken" element={<PairingPage />} />

@@ -313,6 +313,26 @@ const addScoutSchema = z.object({
   pointsPenalty: z.number().int().min(0).max(200).optional(),
 });
 
+const racePatrolRacerSchema = z.object({
+  name: z.string().min(1),
+  groupName: z.string().trim().min(1).max(50).optional(),
+  weight: z.number().positive().max(10_000).optional(),
+});
+
+const createRacePatrolSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  racers: z.array(racePatrolRacerSchema).min(1).max(300),
+});
+
+const updateRacePatrolSchema = z.object({
+  name: z.string().trim().min(1).max(80).optional(),
+  racers: z.array(racePatrolRacerSchema).min(1).max(300).optional(),
+});
+
+const importPatrolsSchema = z.object({
+  patrolIds: z.array(z.string().min(1)).min(1).max(50),
+});
+
 const postResultSchema = z.object({
   finishOrder: z.array(z.string().min(1)).min(2),
 });
@@ -783,6 +803,119 @@ app.get("/api/auth/me", requireAuth as express.RequestHandler, async (req: AuthR
   }
 });
 
+// --- Race Patrol Routes ---
+
+app.get("/api/patrols", requireAuth as express.RequestHandler, async (req: AuthRequest, res) => {
+  if (!req.user) return res.status(401).json({ message: "Authentication required" });
+  const patrols = await prisma.racePatrol.findMany({
+    where: { userId: req.user.id },
+    orderBy: { createdAt: "desc" },
+    include: { racers: true },
+  });
+  return res.json({
+    patrols: patrols.map((p) => ({
+      id: p.id,
+      name: p.name,
+      createdAt: p.createdAt.getTime(),
+      racers: p.racers.map((r) => ({
+        id: r.id,
+        name: r.name,
+        groupName: r.groupName ?? null,
+        weight: r.weight ?? null,
+      })),
+    })),
+  });
+});
+
+app.post("/api/patrols", requireAuth as express.RequestHandler, async (req: AuthRequest, res) => {
+  const parsed = createRacePatrolSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error.flatten());
+  if (!req.user) return res.status(401).json({ message: "Authentication required" });
+
+  const patrol = await prisma.racePatrol.create({
+    data: {
+      id: nanoid(10),
+      name: parsed.data.name,
+      userId: req.user.id,
+      racers: {
+        create: parsed.data.racers.map((r) => ({
+          id: nanoid(10),
+          name: r.name,
+          groupName: r.groupName ?? null,
+          weight: r.weight ?? null,
+        })),
+      },
+    },
+    include: { racers: true },
+  });
+
+  return res.status(201).json({
+    id: patrol.id,
+    name: patrol.name,
+    createdAt: patrol.createdAt.getTime(),
+    racers: patrol.racers.map((r) => ({
+      id: r.id,
+      name: r.name,
+      groupName: r.groupName ?? null,
+      weight: r.weight ?? null,
+    })),
+  });
+});
+
+app.patch("/api/patrols/:patrolId", requireAuth as express.RequestHandler, async (req: AuthRequest, res) => {
+  const patrolId = req.params.patrolId as string;
+  const parsed = updateRacePatrolSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error.flatten());
+  if (!req.user) return res.status(401).json({ message: "Authentication required" });
+
+  const existing = await prisma.racePatrol.findUnique({ where: { id: patrolId }, select: { id: true, userId: true } });
+  if (!existing || existing.userId !== req.user.id) return res.status(404).json({ message: "Race patrol not found" });
+
+  const updated = await prisma.$transaction(async (tx) => {
+    if (parsed.data.racers) {
+      await tx.racePatrolRacer.deleteMany({ where: { patrolId } });
+    }
+    return tx.racePatrol.update({
+      where: { id: patrolId },
+      data: {
+        name: parsed.data.name,
+        racers: parsed.data.racers
+          ? {
+              create: parsed.data.racers.map((r) => ({
+                id: nanoid(10),
+                name: r.name,
+                groupName: r.groupName ?? null,
+                weight: r.weight ?? null,
+              })),
+            }
+          : undefined,
+      },
+      include: { racers: true },
+    });
+  });
+
+  return res.json({
+    id: updated.id,
+    name: updated.name,
+    createdAt: updated.createdAt.getTime(),
+    racers: updated.racers.map((r) => ({
+      id: r.id,
+      name: r.name,
+      groupName: r.groupName ?? null,
+      weight: r.weight ?? null,
+    })),
+  });
+});
+
+app.delete("/api/patrols/:patrolId", requireAuth as express.RequestHandler, async (req: AuthRequest, res) => {
+  const patrolId = req.params.patrolId as string;
+  if (!req.user) return res.status(401).json({ message: "Authentication required" });
+  const existing = await prisma.racePatrol.findUnique({ where: { id: patrolId }, select: { id: true, userId: true } });
+  if (!existing || existing.userId !== req.user.id) return res.status(404).json({ message: "Race patrol not found" });
+  await prisma.racePatrol.delete({ where: { id: patrolId } });
+  return res.status(204).send();
+});
+
 const kioskBootstrapLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 30, keyPrefix: "kiosk-bootstrap" });
 const kioskSessionCreateLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-create" });
 const kioskSessionLookupLimiter = createRateLimiter({ windowMs: 60_000, max: 30, keyPrefix: "kiosk-session-lookup" });
@@ -1083,6 +1216,63 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
 
     publishEvent(req.params.eventId);
     return res.status(201).json(scout);
+  } catch {
+    return res.status(404).json({ message: "Event not found" });
+  }
+});
+
+app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.RequestHandler, async (req: AuthRequest, res) => {
+  const eventId = req.params.eventId as string;
+  const parsed = importPatrolsSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error.flatten());
+  if (!req.user) return res.status(401).json({ message: "Authentication required" });
+
+  try {
+    const access = await requireEventWriteAccess(req as AuthRequest, res, eventId);
+    if (!access) return;
+
+    const patrols = await prisma.racePatrol.findMany({
+      where: { id: { in: parsed.data.patrolIds }, userId: req.user.id },
+      include: { racers: true },
+    });
+    if (patrols.length !== parsed.data.patrolIds.length) {
+      return res.status(404).json({ message: "One or more patrols were not found" });
+    }
+
+    const racers = patrols.flatMap((p) => p.racers);
+    if (racers.length === 0) return res.status(400).json({ message: "No racers to import" });
+
+    const existing = await prisma.scout.findMany({
+      where: { eventId },
+      select: { carNumber: true },
+    });
+    const maxCarNumber = existing.reduce((max, s) => {
+      const n = Number.parseInt(s.carNumber, 10);
+      return Number.isFinite(n) ? Math.max(max, n) : max;
+    }, 0);
+
+    const nextNumbers = shuffle(Array.from({ length: racers.length }, (_, idx) => String(maxCarNumber + idx + 1)));
+
+    await prisma.$transaction(
+      racers.map((r, idx) =>
+        prisma.scout.create({
+          data: {
+            id: nanoid(10),
+            name: r.name,
+            carNumber: nextNumbers[idx],
+            groupName: r.groupName ?? null,
+            weight: r.weight ?? null,
+            points: 0,
+            eliminated: false,
+            eliminatedAt: null,
+            eventId,
+          },
+        })
+      )
+    );
+
+    publishEvent(eventId);
+    return res.status(201).json({ created: racers.length });
   } catch {
     return res.status(404).json({ message: "Event not found" });
   }

@@ -16,6 +16,7 @@ model User {
   name         String?
   passwordHash String
   events       Event[]
+  racePatrols  RacePatrol[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -100,6 +101,28 @@ model EventLog {
 
   scoutId      String?
   scout        Scout?   @relation(fields: [scoutId], references: [id], onDelete: SetNull)
+}
+
+model RacePatrol {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  racers    RacePatrolRacer[]
+}
+
+model RacePatrolRacer {
+  id        String   @id @default(cuid())
+  name      String
+  groupName String?
+  weight    Float?
+
+  patrolId  String
+  patrol    RacePatrol @relation(fields: [patrolId], references: [id], onDelete: Cascade)
 }
 
 model KioskSession {
