@@ -175,11 +175,19 @@ input {
   gap: 1.5rem;
 }
 
+.desktop-only {
+  display: block;
+}
+
 @media (max-width: 768px) {
   .home-page,
   .operator-page {
     padding: 0.5rem;
     gap: 1rem;
+  }
+
+  .desktop-only {
+    display: none;
   }
 }
 

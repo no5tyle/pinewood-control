@@ -545,8 +545,8 @@ function ConfigurePage() {
   const { user } = useAuth();
   const [session, setSession] = useState<KioskSessionStatus | null>(null);
   const [event, setEvent] = useState<EventState | null>(null);
-  const [pointLimit, setPointLimit] = useState(10);
-  const [lanes, setLanes] = useState(4);
+  const [pointLimit, setPointLimit] = useState<string>("10");
+  const [lanes, setLanes] = useState<string>("4");
   const [theme, setTheme] = useState<ThemeName>("system");
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
@@ -565,8 +565,8 @@ function ConfigurePage() {
           return;
         }
         setEvent(e);
-        setPointLimit(e.pointLimit);
-        setLanes(e.lanes);
+        setPointLimit(String(e.pointLimit));
+        setLanes(String(e.lanes));
         setTheme(e.theme as ThemeName);
       })
       .catch((err: Error) => setError(err.message));
@@ -582,9 +582,29 @@ function ConfigurePage() {
     }
 
     try {
+      const lanesNum = Number(lanes);
+      if (!Number.isFinite(lanesNum) || lanes.trim().length === 0) {
+        setError("Please enter the number of lanes.");
+        return;
+      }
+      if (lanesNum < 2 || lanesNum > 6) {
+        setError("Lanes must be between 2 and 6.");
+        return;
+      }
+
+      const pointLimitNum = Number(pointLimit);
+      if (!Number.isFinite(pointLimitNum) || pointLimit.trim().length === 0) {
+        setError("Please enter the elimination points.");
+        return;
+      }
+      if (pointLimitNum < 1 || pointLimitNum > 200) {
+        setError("Elimination points must be between 1 and 200.");
+        return;
+      }
+
       await api<EventState>(`/events/${session.eventId}`, {
         method: "PATCH",
-        body: JSON.stringify({ pointLimit, lanes, theme }),
+        body: JSON.stringify({ pointLimit: pointLimitNum, lanes: lanesNum, theme }),
       });
       navigate(`/events/${session.eventId}/scouts`);
     } catch (err) {
@@ -640,7 +660,7 @@ function ConfigurePage() {
             </label>
             <h2>Track Lanes</h2>
             <label>How many lanes does your track have?
-              <input type="number" min={2} max={6} value={lanes} onChange={(e) => setLanes(Number(e.target.value))} required autoFocus />
+              <input type="number" min={2} max={6} value={lanes} onChange={(e) => setLanes(e.target.value)} autoFocus />
             </label>
           </>
         )}
@@ -648,7 +668,7 @@ function ConfigurePage() {
           <>
             <h2>Elimination Points</h2>
             <label>How many points before a racer is eliminated?
-              <input type="number" min={1} max={200} value={pointLimit} onChange={(e) => setPointLimit(Number(e.target.value))} required autoFocus />
+              <input type="number" min={1} max={200} value={pointLimit} onChange={(e) => setPointLimit(e.target.value)} autoFocus />
             </label>
           </>
         )}
@@ -829,12 +849,12 @@ function RaceControlPage() {
   return (
     <main className="operator-page">
       {event.isGuest && !user && (
-        <div className="banner info">
+        <div className="banner info desktop-only">
           This is a guest event. <Link to="/login">Login</Link> or <Link to="/signup">Signup</Link> to save it to your account.
         </div>
       )}
       {event.isGuest && user && (
-        <div className="banner info">
+        <div className="banner info desktop-only">
           This is a guest event. <button onClick={claimEvent} className="text-btn">Save to my account</button>
         </div>
       )}
