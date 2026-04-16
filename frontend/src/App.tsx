@@ -1481,7 +1481,9 @@ function KioskPage() {
                   {showWinnerOverlay && previousWinner ? (
                     <div className="kiosk-heat-winner">
                       <div className="winner-label">Heat Winner</div>
-                      <div className="winner-name-large">#{previousWinner.carNumber} {previousWinner.name}</div>
+                      <div className="winner-number-large">#{previousWinner.carNumber}</div>
+                      <div className="winner-name-large">{previousWinner.name}</div>
+                      {previousWinner.groupName ? <div className="winner-group">{previousWinner.groupName}</div> : null}
                       <div className="winner-sub">Readying next heat...</div>
                     </div>
                   ) : (
@@ -1492,10 +1494,13 @@ function KioskPage() {
                         {currentHeat?.laneAssignments.map((scoutId, laneIndex) => (
                           <div key={scoutId} className="heat-lane">
                             <span className="lane-number">Lane {laneIndex + 1}</span>
-                            <span className="lane-scout">
-                              #{scoutMap.get(scoutId)?.carNumber} {scoutMap.get(scoutId)?.name}
-                              {scoutMap.get(scoutId)?.groupName ? <span className="muted"> ({scoutMap.get(scoutId)?.groupName})</span> : null}
-                            </span>
+                            <div className="lane-scout">
+                              <div className="lane-scout-number">#{scoutMap.get(scoutId)?.carNumber}</div>
+                              <div className="lane-scout-name">{scoutMap.get(scoutId)?.name}</div>
+                              {scoutMap.get(scoutId)?.groupName ? (
+                                <div className="lane-scout-group">{scoutMap.get(scoutId)?.groupName}</div>
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                       </div>

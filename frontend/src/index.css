@@ -384,10 +384,26 @@ label {
 }
 
 .winner-name-large {
+  font-size: 4rem;
+  font-weight: 900;
+  color: var(--kiosk-text);
+  line-height: 1;
+  text-align: center;
+}
+
+.winner-number-large {
   font-size: 7rem;
   font-weight: 900;
   color: var(--kiosk-text);
   line-height: 1;
+  text-align: center;
+}
+
+.winner-group {
+  font-size: 2rem;
+  font-style: italic;
+  opacity: 0.85;
+  color: var(--kiosk-text);
   text-align: center;
 }
 
@@ -905,10 +921,29 @@ label {
 }
 
 .lane-scout {
-  font-size: 3rem;
-  font-weight: 900;
+  display: grid;
+  gap: 0.4rem;
   text-align: center;
   line-height: 1.1;
+}
+
+.lane-scout-number {
+  font-size: 4rem;
+  font-weight: 900;
+  color: var(--kiosk-text);
+}
+
+.lane-scout-name {
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--kiosk-text);
+}
+
+.lane-scout-group {
+  font-size: 1.4rem;
+  font-style: italic;
+  opacity: 0.85;
+  color: var(--kiosk-text);
 }
 
 .kiosk-standings-card {
