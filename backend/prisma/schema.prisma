@@ -39,6 +39,7 @@ model Event {
   
   scouts         Scout[]
   heats          Heat[]
+  logs           EventLog[]
   kioskSessions  KioskSession[]
   guestKioskLinks GuestKioskLink[]
   popularVotes   PopularVote[]
@@ -58,6 +59,8 @@ model Scout {
   eliminated  Boolean  @default(false)
   eliminatedAt DateTime?
   eliminatedHeatId String?
+  dropped     Boolean  @default(false)
+  droppedAt   DateTime?
   laneHistory String   @default("[]") // JSON array of lane numbers
   
   eventId     String
@@ -67,6 +70,7 @@ model Scout {
   eliminatedHeat Heat? @relation("HeatElimination", fields: [eliminatedHeatId], references: [id], onDelete: SetNull)
   popularVoteWins Event[] @relation("PopularVoteWinner")
   votesReceived PopularVote[]
+  logs        EventLog[]
 }
 
 model Heat {
@@ -83,6 +87,19 @@ model Heat {
   
   loserScoutIds   String   @default("[]") // JSON array of scout IDs
   eliminatedScouts Scout[] @relation("HeatElimination")
+}
+
+model EventLog {
+  id           String   @id @default(cuid())
+  type         String
+  createdAt    DateTime @default(now())
+  pointsPenalty Int?
+
+  eventId      String
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  scoutId      String?
+  scout        Scout?   @relation(fields: [scoutId], references: [id], onDelete: SetNull)
 }
 
 model KioskSession {

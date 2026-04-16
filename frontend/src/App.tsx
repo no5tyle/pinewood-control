@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import QRCode from "qrcode";
 import socketIOClient from "socket.io-client";
 import {
@@ -23,6 +23,8 @@ type Scout = {
   weight?: number | null;
   eliminatedAt?: number | null;
   eliminatedHeatId?: string | null;
+  dropped?: boolean;
+  droppedAt?: number | null;
   points: number;
   eliminated: boolean;
 };
@@ -65,6 +67,13 @@ type EventResults = {
   event: EventState;
   completedAt: number | null;
   champion: Scout | null;
+  timeline: Array<{
+    id: string;
+    type: "late_entrant" | "drop" | string;
+    createdAt: number;
+    scoutId: string | null;
+    pointsPenalty: number | null;
+  }>;
   popularVote: {
     totalVotes: number;
     revealAt: number | null;
@@ -1241,6 +1250,22 @@ function RaceControlPage() {
     }
   };
 
+  const dropRacer = async (scoutId: string) => {
+    if (!event) return;
+    const scout = scoutById.get(scoutId);
+    if (!scout) return;
+    if (scout.eliminated) return;
+    if (!window.confirm(`Drop #${scout.carNumber} ${scout.name} from this race?\n\nThey will be ranked based on when they dropped.`)) {
+      return;
+    }
+    try {
+      await api(`/events/${event.id}/scouts/${scoutId}/drop`, { method: "POST" });
+      setSubmitError("");
+    } catch (err) {
+      setSubmitError((err as Error).message);
+    }
+  };
+
   const addLateEntrant = async (e: FormEvent) => {
     e.preventDefault();
     if (!event) return;
@@ -1392,7 +1417,14 @@ function RaceControlPage() {
           {event.standings.map((s) => (
             <li key={s.id} className={s.eliminated ? "eliminated" : ""}>
               <span><strong>#{s.carNumber}</strong> {s.name}{s.groupName ? <span className="muted"> ({s.groupName})</span> : null}</span>
-              <span>{s.eliminated ? "Out" : `${s.points} point${s.points === 1 ? "" : "s"}`}</span>
+              <span className="standings-right">
+                <span>{s.eliminated ? (s.dropped ? "Dropped" : "Out") : `${s.points} point${s.points === 1 ? "" : "s"}`}</span>
+                {!s.eliminated ? (
+                  <button type="button" className="secondary-btn standings-drop" onClick={() => void dropRacer(s.id)}>
+                    Drop
+                  </button>
+                ) : null}
+              </span>
             </li>
           ))}
         </ul>
@@ -1868,7 +1900,7 @@ function KioskPage() {
                         <span className="standing-rank">#{index + 1}</span>
                         <span className="standing-name">#{scout.carNumber} {scout.name}{scout.groupName ? ` (${scout.groupName})` : ""}</span>
                         <span className="standing-status">
-                        {scout.eliminated ? "Out" : `${scout.points} point${scout.points === 1 ? "" : "s"}`}
+                        {scout.eliminated ? (scout.dropped ? "Dropped" : "Out") : `${scout.points} point${scout.points === 1 ? "" : "s"}`}
                         </span>
                       </div>
                     ))}
@@ -2502,7 +2534,7 @@ function ResultsPage() {
                   <strong>#{scout.carNumber}</strong> {scout.name}
                   {scout.groupName ? <span className="muted"> ({scout.groupName})</span> : null}
                 </span>
-                <span className="car-number">{scout.eliminated ? "Out" : ""}</span>
+                <span className="car-number">{scout.eliminated ? (scout.dropped ? "Dropped" : "Out") : ""}</span>
               </div>
             ))}
           </div>
@@ -2512,39 +2544,132 @@ function ResultsPage() {
           <h2>Race History</h2>
           {heatResultsSorted.length === 0 ? <p className="muted">No races recorded yet.</p> : null}
           <div className="race-history">
-            {heatResultsSorted.map((heat, index) => (
-              <div key={heat.id} className="race-item">
-                <div className="race-meta">
-                  <strong>Race {index + 1}</strong>
-                  <span className="muted">{new Date(heat.createdAt).toLocaleString()}</span>
-                </div>
-                {heat.placements.length === 0 ? (
-                  <p className="muted">Not finished</p>
-                ) : (
-                  <ol className="race-placements">
-                    {heat.placements.map((placement) => (
-                      <li key={`${heat.id}-${placement.place}`}>
-                        <span className="place-chip">#{placement.place}</span>
-                        <span
-                          className={[
-                            "placement-name",
-                            placement.scout && heat.eliminatedScoutIds.includes(placement.scout.id) ? "eliminated-strike" : "",
-                          ].filter(Boolean).join(" ")}
-                        >
-                          {placement.scout ? `#${placement.scout.carNumber} ${placement.scout.name}` : "Unknown"}
-                          {placement.scout?.groupName ? ` (${placement.scout.groupName})` : ""}
-                        </span>
-                        {placement.scout ? (
-                          <span className="placement-points muted">
-                            {pointsAfterByHeatId.get(heat.id)?.get(placement.scout.id) ?? placement.scout.points} pts
-                          </span>
+            {(() => {
+              const events = (results.timeline ?? [])
+                .filter((t) => typeof t?.createdAt === "number")
+                .slice()
+                .sort((a, b) => a.createdAt - b.createdAt);
+              let cursor = -Infinity;
+              const out: ReactNode[] = [];
+              for (let i = 0; i < heatResultsSorted.length; i += 1) {
+                const heat = heatResultsSorted[i];
+                const between = events.filter((t) => t.createdAt > cursor && t.createdAt <= heat.createdAt);
+                between.forEach((t) => {
+                  const scout = t.scoutId ? results.event.scouts.find((s) => s.id === t.scoutId) ?? null : null;
+                  if (t.type === "late_entrant") {
+                    out.push(
+                      <div key={t.id} className="race-history-event">
+                        <div className="race-history-event-line" />
+                        <div className="race-history-event-text">
+                          Late entrant added:{" "}
+                          {scout ? (
+                            <strong>#{scout.carNumber} {scout.name}</strong>
+                          ) : (
+                            <strong>Unknown</strong>
+                          )}
+                          {typeof t.pointsPenalty === "number" ? (
+                            <span className="muted"> — {t.pointsPenalty} pt penalty</span>
+                          ) : null}
+                        </div>
+                        <div className="race-history-event-line" />
+                      </div>
+                    );
+                  } else if (t.type === "drop") {
+                    out.push(
+                      <div key={t.id} className="race-history-event">
+                        <div className="race-history-event-line" />
+                        <div className="race-history-event-text">
+                          Racer dropped:{" "}
+                          {scout ? (
+                            <strong>#{scout.carNumber} {scout.name}</strong>
+                          ) : (
+                            <strong>Unknown</strong>
+                          )}
+                        </div>
+                        <div className="race-history-event-line" />
+                      </div>
+                    );
+                  }
+                });
+
+                out.push(
+                  <div key={heat.id} className="race-item">
+                    <div className="race-meta">
+                      <strong>Race {i + 1}</strong>
+                      <span className="muted">{new Date(heat.createdAt).toLocaleString()}</span>
+                    </div>
+                    {heat.placements.length === 0 ? (
+                      <p className="muted">Not finished</p>
+                    ) : (
+                      <ol className="race-placements">
+                        {heat.placements.map((placement) => (
+                          <li key={`${heat.id}-${placement.place}`}>
+                            <span className="place-chip">#{placement.place}</span>
+                            <span
+                              className={[
+                                "placement-name",
+                                placement.scout && heat.eliminatedScoutIds.includes(placement.scout.id) ? "eliminated-strike" : "",
+                              ].filter(Boolean).join(" ")}
+                            >
+                              {placement.scout ? `#${placement.scout.carNumber} ${placement.scout.name}` : "Unknown"}
+                              {placement.scout?.groupName ? ` (${placement.scout.groupName})` : ""}
+                            </span>
+                            {placement.scout ? (
+                              <span className="placement-points muted">
+                                {pointsAfterByHeatId.get(heat.id)?.get(placement.scout.id) ?? placement.scout.points} pts
+                              </span>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                );
+
+                cursor = heat.createdAt;
+              }
+
+              const trailing = events.filter((t) => t.createdAt > cursor);
+              trailing.forEach((t) => {
+                const scout = t.scoutId ? results.event.scouts.find((s) => s.id === t.scoutId) ?? null : null;
+                if (t.type === "late_entrant") {
+                  out.push(
+                    <div key={t.id} className="race-history-event">
+                      <div className="race-history-event-line" />
+                      <div className="race-history-event-text">
+                        Late entrant added:{" "}
+                        {scout ? (
+                          <strong>#{scout.carNumber} {scout.name}</strong>
+                        ) : (
+                          <strong>Unknown</strong>
+                        )}
+                        {typeof t.pointsPenalty === "number" ? (
+                          <span className="muted"> — {t.pointsPenalty} pt penalty</span>
                         ) : null}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </div>
-            ))}
+                      </div>
+                      <div className="race-history-event-line" />
+                    </div>
+                  );
+                } else if (t.type === "drop") {
+                  out.push(
+                    <div key={t.id} className="race-history-event">
+                      <div className="race-history-event-line" />
+                      <div className="race-history-event-text">
+                        Racer dropped:{" "}
+                        {scout ? (
+                          <strong>#{scout.carNumber} {scout.name}</strong>
+                        ) : (
+                          <strong>Unknown</strong>
+                        )}
+                      </div>
+                      <div className="race-history-event-line" />
+                    </div>
+                  );
+                }
+              });
+
+              return out;
+            })()}
           </div>
         </section>
       </div>

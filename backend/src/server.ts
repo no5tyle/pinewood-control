@@ -341,7 +341,10 @@ async function getEventWithDetails(eventId: string) {
       },
       heats: {
         orderBy: { createdAt: "asc" }
-      }
+      },
+      logs: {
+        orderBy: { createdAt: "asc" }
+      },
     }
   });
   if (!event) throw new Error("Event not found");
@@ -374,6 +377,7 @@ function serializeEvent(event: any) {
     laneHistory: safeParseJSON<number[]>(s.laneHistory, []),
     eliminatedAt: s.eliminatedAt ? s.eliminatedAt.getTime() : null,
     eliminatedHeatId: s.eliminatedHeatId ?? null,
+    droppedAt: s.droppedAt ? s.droppedAt.getTime() : null,
   }));
   
   const active = scouts.filter((s: any) => !s.eliminated);
@@ -942,7 +946,7 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
     if (!access) return;
     const event = await prisma.event.findUnique({
       where: { id: req.params.eventId },
-      select: { id: true, pointLimit: true },
+      select: { id: true, pointLimit: true, setupComplete: true },
     });
     if (!event) return res.status(404).json({ message: "Event not found" });
     const existing = await prisma.scout.findMany({
@@ -969,8 +973,74 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
         eventId: req.params.eventId,
       }
     });
+
+    const heatCount = await prisma.heat.count({ where: { eventId: req.params.eventId } });
+    if (event.setupComplete || heatCount > 0) {
+      await prisma.eventLog.create({
+        data: {
+          eventId: req.params.eventId,
+          type: "late_entrant",
+          scoutId: scout.id,
+          pointsPenalty,
+        },
+      });
+    }
+
     publishEvent(req.params.eventId);
     return res.status(201).json(scout);
+  } catch {
+    return res.status(404).json({ message: "Event not found" });
+  }
+});
+
+app.post("/api/events/:eventId/scouts/:scoutId/drop", async (req, res) => {
+  const eventId = req.params.eventId as string;
+  const scoutId = req.params.scoutId as string;
+  try {
+    const access = await requireEventWriteAccess(req as AuthRequest, res, eventId);
+    if (!access) return;
+
+    const event = await getEventWithDetails(eventId);
+    const scout = event.scouts.find((s) => s.id === scoutId);
+    if (!scout) return res.status(404).json({ message: "Racer not found" });
+    if (scout.eliminated) return res.status(400).json({ message: "Racer is already out" });
+
+    const currentHeat = event.heats.find((h) => safeParseJSON<string[]>(h.finishOrder, []).length === 0);
+    if (currentHeat) {
+      const laneAssignments = safeParseJSON<string[]>(currentHeat.laneAssignments, []);
+      if (laneAssignments.includes(scoutId)) {
+        return res.status(400).json({ message: "Cannot drop a racer while they are in the current heat" });
+      }
+    }
+
+    const droppedAt = new Date();
+    await prisma.scout.update({
+      where: { id: scoutId },
+      data: {
+        eliminated: true,
+        eliminatedAt: droppedAt,
+        eliminatedHeatId: null,
+        dropped: true,
+        droppedAt,
+      },
+    });
+
+    await prisma.eventLog.create({
+      data: {
+        eventId,
+        type: "drop",
+        scoutId,
+      },
+    });
+
+    const updatedEvent = await getEventWithDetails(eventId);
+    const activeScouts = updatedEvent.scouts.filter((s) => !s.eliminated);
+    if (activeScouts.length === 1 && !updatedEvent.completedAt) {
+      await prisma.event.update({ where: { id: eventId }, data: { completedAt: new Date() } });
+    }
+
+    publishEvent(eventId);
+    return res.status(200).json({ message: "Racer dropped" });
   } catch {
     return res.status(404).json({ message: "Event not found" });
   }
@@ -1377,11 +1447,19 @@ app.get("/api/events/:eventId/results", async (req, res) => {
             })
         : [];
     const popularVoteWinner = serialized.popularVoteWinner ?? null;
+    const timeline = (event.logs ?? []).map((log: any) => ({
+      id: log.id,
+      type: String(log.type),
+      createdAt: log.createdAt.getTime(),
+      scoutId: log.scoutId ?? null,
+      pointsPenalty: typeof log.pointsPenalty === "number" ? log.pointsPenalty : null,
+    }));
     
     return res.json({
       event: serialized,
       completedAt: event.completedAt?.getTime() ?? null,
       champion: serialized.championScoutId ? serializedScoutsById.get(serialized.championScoutId) ?? null : null,
+      timeline,
       popularVote: {
         totalVotes: votes.length,
         revealAt: event.popularVoteRevealAt?.getTime() ?? null,
