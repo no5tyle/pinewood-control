@@ -13,6 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
 const prisma = new PrismaClient();
 const app = express();
 const httpServer = createServer(app);
+app.set("trust proxy", true);
 
 const corsOrigin = (process.env.CORS_ORIGIN ?? "").trim();
 const corsOrigins = corsOrigin.length > 0
@@ -23,6 +24,81 @@ const corsOrigins = corsOrigin.length > 0
   : [];
 const allowAllOrigins = corsOrigins.length === 0;
 const allowedOriginSet = new Set(corsOrigins);
+
+type RateLimitState = { count: number; resetAtMs: number };
+
+function getClientIp(req: Pick<Request, "headers" | "ip">): string {
+  const cf = req.headers["cf-connecting-ip"];
+  if (typeof cf === "string" && cf.trim().length > 0) return cf.trim();
+  const xff = req.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.trim().length > 0) return xff.split(",")[0].trim();
+  if (Array.isArray(xff) && xff.length > 0 && xff[0].trim().length > 0) return xff[0].split(",")[0].trim();
+  return req.ip || "unknown";
+}
+
+function createRateLimiter(options: { windowMs: number; max: number; keyPrefix: string; keyFn?: (req: Request) => string }) {
+  const store = new Map<string, RateLimitState>();
+  const { windowMs, max, keyPrefix, keyFn } = options;
+
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (req.method === "OPTIONS") return next();
+
+    const now = Date.now();
+    const baseKey = keyFn ? keyFn(req) : getClientIp(req);
+    const key = `${keyPrefix}:${baseKey}`;
+    const state = store.get(key);
+    if (!state || now >= state.resetAtMs) {
+      store.set(key, { count: 1, resetAtMs: now + windowMs });
+      res.setHeader("X-RateLimit-Limit", String(max));
+      res.setHeader("X-RateLimit-Remaining", String(Math.max(0, max - 1)));
+      res.setHeader("X-RateLimit-Reset", String(Math.ceil((now + windowMs) / 1000)));
+      return next();
+    }
+
+    state.count += 1;
+    res.setHeader("X-RateLimit-Limit", String(max));
+    res.setHeader("X-RateLimit-Remaining", String(Math.max(0, max - state.count)));
+    res.setHeader("X-RateLimit-Reset", String(Math.ceil(state.resetAtMs / 1000)));
+
+    if (state.count > max) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((state.resetAtMs - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+      return res.status(429).json({ message: "Too many requests" });
+    }
+
+    return next();
+  };
+}
+
+function createEngineRateLimiter(options: { windowMs: number; max: number; keyPrefix: string }) {
+  const store = new Map<string, RateLimitState>();
+  const { windowMs, max, keyPrefix } = options;
+
+  return (req: any, res: any, next: (err?: any) => void) => {
+    const method = (req.method as string | undefined) ?? "GET";
+    if (method === "OPTIONS") return next();
+
+    const now = Date.now();
+    const ip = getClientIp({ headers: req.headers ?? {}, ip: req.socket?.remoteAddress ?? "unknown" } as any);
+    const key = `${keyPrefix}:${ip}`;
+    const state = store.get(key);
+    if (!state || now >= state.resetAtMs) {
+      store.set(key, { count: 1, resetAtMs: now + windowMs });
+      return next();
+    }
+
+    state.count += 1;
+    if (state.count > max) {
+      try {
+        res.statusCode = 429;
+        res.setHeader("Content-Type", "text/plain");
+        res.end("Too many requests");
+      } catch {}
+      return;
+    }
+    return next();
+  };
+}
 
 const io = new Server(httpServer, {
   cors: allowAllOrigins
@@ -38,6 +114,8 @@ const io = new Server(httpServer, {
         allowedHeaders: ["Content-Type", "Authorization", "X-Kiosk-Token"],
       },
 });
+
+io.engine.use(createEngineRateLimiter({ windowMs: 60_000, max: 1200, keyPrefix: "socket" }));
 
 // --- Auth Middleware ---
 
@@ -87,6 +165,7 @@ app.use(
   )
 );
 app.use(express.json());
+app.use("/api", createRateLimiter({ windowMs: 60_000, max: 300, keyPrefix: "api" }));
 app.use(authenticate as express.RequestHandler);
 
 const guestEventTtlMs = 24 * 60 * 60_000;
@@ -215,6 +294,7 @@ const createEventSchema = z.object({
   lanes: z.number().int().min(2).max(6).default(2),
   isGuest: z.boolean().default(false),
   theme: z.string().default("system"),
+  weightUnit: z.enum(["g", "oz"]).default("g"),
 });
 
 const updateEventSchema = z.object({
@@ -223,11 +303,13 @@ const updateEventSchema = z.object({
   lanes: z.number().int().min(2).max(6).optional(),
   setupComplete: z.boolean().optional(),
   theme: z.string().optional(),
+  weightUnit: z.enum(["g", "oz"]).optional(),
 });
 
 const addScoutSchema = z.object({
   name: z.string().min(1),
-  carNumber: z.string().min(1),
+  groupName: z.string().trim().min(1).max(50).optional(),
+  weight: z.number().positive().max(10_000).optional(),
 });
 
 const postResultSchema = z.object({
@@ -265,7 +347,10 @@ function sortStandings(scouts: any[]): any[] {
   return [...scouts].sort((a, b) => {
     if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
     if (a.points !== b.points) return a.points - b.points;
-    return a.name.localeCompare(b.name);
+    const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+    const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+    if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
   });
 }
 
@@ -287,6 +372,7 @@ function serializeEvent(event: any) {
     setupComplete: event.setupComplete,
     isGuest: Boolean(event.isGuest),
     theme: event.theme,
+    weightUnit: event.weightUnit ?? "g",
     createdAt: event.createdAt.getTime(),
     completedAt: event.completedAt?.getTime() ?? null,
     scouts,
@@ -465,7 +551,27 @@ async function chooseNextHeat(eventId: string): Promise<any | null> {
 
 // --- Auth Routes ---
 
-app.post("/api/auth/register", async (req, res) => {
+const registerLimiter = createRateLimiter({
+  windowMs: 60 * 60_000,
+  max: 5,
+  keyPrefix: "auth-register",
+  keyFn: (req) => {
+    const email = typeof (req as any).body?.email === "string" ? (req as any).body.email.toLowerCase().trim() : "";
+    return `${getClientIp(req)}:${email}`;
+  },
+});
+
+const loginLimiter = createRateLimiter({
+  windowMs: 15 * 60_000,
+  max: 30,
+  keyPrefix: "auth-login",
+  keyFn: (req) => {
+    const email = typeof (req as any).body?.email === "string" ? (req as any).body.email.toLowerCase().trim() : "";
+    return `${getClientIp(req)}:${email}`;
+  },
+});
+
+app.post("/api/auth/register", registerLimiter, async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
 
@@ -487,7 +593,7 @@ app.post("/api/auth/register", async (req, res) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", loginLimiter, async (req, res) => {
   const parsed = loginSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
 
@@ -516,6 +622,20 @@ app.get("/api/auth/me", requireAuth as express.RequestHandler, async (req: AuthR
   }
 });
 
+const kioskBootstrapLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 30, keyPrefix: "kiosk-bootstrap" });
+const kioskSessionCreateLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-create" });
+const kioskSessionLookupLimiter = createRateLimiter({ windowMs: 60_000, max: 30, keyPrefix: "kiosk-session-lookup" });
+const kioskSessionBindLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-bind" });
+const kioskSessionCreateEventLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 20, keyPrefix: "kiosk-session-create-event" });
+const kioskPairingRequestLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 30,
+  keyPrefix: "kiosk-pairing-request",
+  keyFn: (req) => `${getClientIp(req)}:${(req as any).params?.token ?? ""}`,
+});
+const kioskPairLimiter = createRateLimiter({ windowMs: 60_000, max: 20, keyPrefix: "kiosk-pair" });
+const guestKioskRedeemLimiter = createRateLimiter({ windowMs: 60 * 60_000, max: 30, keyPrefix: "guest-kiosk-redeem" });
+
 // --- Event Routes ---
 
 app.post("/api/events", async (req: AuthRequest, res) => {
@@ -529,6 +649,7 @@ app.post("/api/events", async (req: AuthRequest, res) => {
       pointLimit: parsed.data.pointLimit,
       lanes: parsed.data.lanes,
       theme: parsed.data.theme,
+      weightUnit: parsed.data.weightUnit,
       userId: req.user?.id || null,
       isGuest,
     },
@@ -609,7 +730,7 @@ app.delete("/api/events/:eventId/guest", async (req: AuthRequest, res) => {
   }
 });
 
-app.post("/api/guest-kiosk/:token", async (req, res) => {
+app.post("/api/guest-kiosk/:token", guestKioskRedeemLimiter, async (req, res) => {
   const token = req.params.token as string;
   const now = new Date();
   const link = await (prisma as any).guestKioskLink.findUnique({
@@ -639,7 +760,7 @@ app.post("/api/guest-kiosk/:token", async (req, res) => {
   });
 });
 
-app.post("/api/kiosk/bootstrap", async (req: AuthRequest, res) => {
+app.post("/api/kiosk/bootstrap", kioskBootstrapLimiter, async (req: AuthRequest, res) => {
   const token = nanoid(12);
   const expiresAt = new Date(Date.now() + kioskAccessTtlMs);
 
@@ -656,7 +777,7 @@ app.post("/api/kiosk/bootstrap", async (req: AuthRequest, res) => {
   });
 });
 
-app.post("/api/kiosk/sessions/:token/create-event", async (req: AuthRequest, res) => {
+app.post("/api/kiosk/sessions/:token/create-event", kioskSessionCreateEventLimiter, async (req: AuthRequest, res) => {
   const token = req.params.token as string;
   const parsed = createEventSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error.flatten());
@@ -674,6 +795,7 @@ app.post("/api/kiosk/sessions/:token/create-event", async (req: AuthRequest, res
       pointLimit: parsed.data.pointLimit,
       lanes: parsed.data.lanes,
       theme: parsed.data.theme,
+      weightUnit: parsed.data.weightUnit,
       userId: req.user?.id || null,
       isGuest,
     },
@@ -756,11 +878,22 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
   try {
     const access = await requireEventWriteAccess(req as AuthRequest, res, req.params.eventId);
     if (!access) return;
+    const existing = await prisma.scout.findMany({
+      where: { eventId: req.params.eventId },
+      select: { carNumber: true },
+    });
+    const maxCarNumber = existing.reduce((max, s) => {
+      const n = Number.parseInt(s.carNumber, 10);
+      return Number.isFinite(n) ? Math.max(max, n) : max;
+    }, 0);
+    const carNumber = String(maxCarNumber + 1);
     const scout = await prisma.scout.create({
       data: {
         id: nanoid(10),
         name: parsed.data.name,
-        carNumber: parsed.data.carNumber,
+        carNumber,
+        groupName: parsed.data.groupName ?? null,
+        weight: parsed.data.weight ?? null,
         eventId: req.params.eventId,
       }
     });
@@ -874,7 +1007,7 @@ app.post("/api/events/:eventId/heats/:heatId/result", async (req, res) => {
   }
 });
 
-app.post("/api/kiosk/sessions", async (_req, res) => {
+app.post("/api/kiosk/sessions", kioskSessionCreateLimiter, async (_req, res) => {
   const token = nanoid(12);
   const expiresAt = new Date(Date.now() + kioskAccessTtlMs);
   await prisma.kioskSession.create({
@@ -883,7 +1016,7 @@ app.post("/api/kiosk/sessions", async (_req, res) => {
   return res.status(201).json({ token, expiresAt: expiresAt.getTime() });
 });
 
-app.get("/api/kiosk/sessions/:token", async (req, res) => {
+app.get("/api/kiosk/sessions/:token", kioskSessionLookupLimiter, async (req, res) => {
   const token = req.params.token as string;
   const session = await prisma.kioskSession.findUnique({
     where: { token }
@@ -901,7 +1034,7 @@ app.get("/api/kiosk/sessions/:token", async (req, res) => {
   });
 });
 
-app.post("/api/kiosk/sessions/:token/bind", async (req, res) => {
+app.post("/api/kiosk/sessions/:token/bind", kioskSessionBindLimiter, async (req, res) => {
   const token = req.params.token as string;
   const schema = z.object({ eventId: z.string().min(1) });
   const parsed = schema.safeParse(req.body);
@@ -937,7 +1070,7 @@ app.post("/api/kiosk/sessions/:token/bind", async (req, res) => {
   return res.json({ token: session.token, eventId: parsed.data.eventId, isBound: true });
 });
 
-app.post("/api/kiosk/sessions/:token/pairing-request", async (req, res) => {
+app.post("/api/kiosk/sessions/:token/pairing-request", kioskPairingRequestLimiter, async (req, res) => {
   const token = req.params.token as string;
   const session = await prisma.kioskSession.findUnique({
     where: { token }
@@ -960,7 +1093,7 @@ app.post("/api/kiosk/sessions/:token/pairing-request", async (req, res) => {
   return res.status(201).json({ qrToken, pairingCode, expiresAt: expiresAt.getTime() });
 });
 
-app.post("/api/kiosk/pair", async (req, res) => {
+app.post("/api/kiosk/pair", kioskPairLimiter, async (req, res) => {
   const schema = z.object({
     qrToken: z.string().min(1),
     pairingCode: z.string().min(6).max(6),

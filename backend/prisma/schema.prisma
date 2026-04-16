@@ -29,6 +29,7 @@ model Event {
   isComplete     Boolean  @default(false)
   isGuest        Boolean  @default(false) // If true, can be claimed
   theme          String   @default("system")
+  weightUnit     String   @default("g")
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   completedAt    DateTime?
@@ -46,6 +47,8 @@ model Scout {
   id          String   @id @default(cuid())
   name        String
   carNumber   String
+  groupName   String?
+  weight      Float?
   points      Int      @default(0)
   eliminated  Boolean  @default(false)
   laneHistory String   @default("[]") // JSON array of lane numbers
