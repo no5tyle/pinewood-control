@@ -543,9 +543,9 @@ function AppHeader({ onRelink }: { onRelink?: () => void }) {
       <Link to="/" className="app-brand">Pinewood Control</Link>
       <div className="app-header-actions">
         {onRelink ? (
-          <button className="profile-btn relink-btn" onClick={onRelink} aria-label="Relink device">
+          <button className="profile-btn relink-btn" onClick={onRelink} aria-label="Re-pair device">
             <span className="profile-icon" aria-hidden="true">🔗</span>
-            <span>Relink</span>
+            <span>Re-pair</span>
           </button>
         ) : null}
         <Link to="/events" className="profile-btn" aria-label="View events">
@@ -708,7 +708,7 @@ function ConfigurePage() {
         setError("Please enter the number of lanes.");
         return;
       }
-      if (lanesNum < 2 || lanesNum > 6) {
+      if (lanesNum < 2 || lanesNum > 12) {
         setError("Lanes must be between 2 and 12.");
         return;
       }
@@ -723,7 +723,7 @@ function ConfigurePage() {
         setError("Please enter the number of lanes.");
         return;
       }
-      if (lanesNum < 2 || lanesNum > 6) {
+      if (lanesNum < 2 || lanesNum > 12) {
         setError("Lanes must be between 2 and 12.");
         return;
       }
@@ -1530,7 +1530,7 @@ function KioskPage() {
           {showPairing ? (
             <div className="kiosk-pairing-overlay">
               <button className="close-overlay" onClick={() => setShowPairing(false)} aria-label="Close pairing">×</button>
-              <h2>Link Operator</h2>
+              <h2>Pair Operator</h2>
               {qrSrc ? <img src={qrSrc} alt="Scan to control event" /> : <p>Generating QR...</p>}
               {pairingCode ? (
                 <div className="pairing-code-display">
