@@ -706,7 +706,7 @@ function ConfigurePage() {
         return;
       }
       if (lanesNum < 2 || lanesNum > 6) {
-        setError("Lanes must be between 2 and 6.");
+        setError("Lanes must be between 2 and 12.");
         return;
       }
       setError("");
@@ -721,7 +721,7 @@ function ConfigurePage() {
         return;
       }
       if (lanesNum < 2 || lanesNum > 6) {
-        setError("Lanes must be between 2 and 6.");
+        setError("Lanes must be between 2 and 12.");
         return;
       }
 
@@ -852,7 +852,7 @@ function ConfigurePage() {
             <h2>Track Lanes</h2>
             <p className="muted">Enter your track lane count.</p>
             <label>How many lanes does your track have?
-              <input type="number" min={2} max={6} value={lanes} onChange={(e) => setLanes(e.target.value)} autoFocus />
+              <input type="number" min={2} max={12} value={lanes} onChange={(e) => setLanes(e.target.value)} autoFocus />
             </label>
           </>
         )}

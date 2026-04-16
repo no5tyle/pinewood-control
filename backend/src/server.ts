@@ -291,7 +291,7 @@ const loginSchema = z.object({
 const createEventSchema = z.object({
   name: z.string().min(2),
   pointLimit: z.number().int().min(1).max(200).default(10),
-  lanes: z.number().int().min(2).max(6).default(2),
+  lanes: z.number().int().min(2).max(12).default(2),
   isGuest: z.boolean().default(false),
   theme: z.string().default("system"),
   weightUnit: z.enum(["g", "oz"]).default("g"),
@@ -300,7 +300,7 @@ const createEventSchema = z.object({
 const updateEventSchema = z.object({
   name: z.string().min(2).optional(),
   pointLimit: z.number().int().min(1).max(200).optional(),
-  lanes: z.number().int().min(2).max(6).optional(),
+  lanes: z.number().int().min(2).max(12).optional(),
   setupComplete: z.boolean().optional(),
   theme: z.string().optional(),
   weightUnit: z.enum(["g", "oz"]).optional(),
@@ -435,12 +435,51 @@ function getPermutations<T>(items: T[]): T[][] {
   return out;
 }
 
+function getPermutationCandidates<T extends { id?: string }>(items: T[]): T[][] {
+  if (items.length <= 6) return getPermutations(items);
+
+  const target = 2000;
+  const out: T[][] = [];
+  const seen = new Set<string>();
+
+  const keyOf = (perm: T[]) => perm.map((x) => x.id ?? "").join("|");
+  const shuffle = (arr: T[]) => {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+  };
+
+  const firstKey = keyOf(items);
+  if (firstKey.length > 0) {
+    seen.add(firstKey);
+    out.push(items);
+  }
+
+  let tries = 0;
+  while (out.length < target && tries < target * 8) {
+    tries += 1;
+    const perm = shuffle(items);
+    const key = keyOf(perm);
+    if (key.length === 0 || seen.has(key)) continue;
+    seen.add(key);
+    out.push(perm);
+  }
+
+  return out.length > 0 ? out : [items];
+}
+
 function buildCandidateGroups(active: any[], heatSize: number): any[][] {
   if (active.length < heatSize) return [];
   if (active.length === heatSize) return [active];
 
   const sorted = [...active].sort((a, b) => {
     if (a.points !== b.points) return a.points - b.points;
+    const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+    const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+    if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
     return a.name.localeCompare(b.name);
   });
 
@@ -479,7 +518,7 @@ async function chooseNextHeat(eventId: string): Promise<any | null> {
   let bestScore = Number.POSITIVE_INFINITY;
 
   for (const group of candidateGroups) {
-    const lanePermutations = getPermutations(group);
+    const lanePermutations = getPermutationCandidates(group);
     let bestGroupAssignment: any[] | null = null;
     let bestGroupLaneCost = Number.POSITIVE_INFINITY;
 
