@@ -1466,7 +1466,6 @@ function EventsPage() {
               </div>
               <div className="inline-actions">
                 <button onClick={createNewEvent}>Create guest event</button>
-                <Link to="/login" className="profile-btn">Login</Link>
               </div>
             </div>
             {guestLoading ? <p>Loading guest events...</p> : null}

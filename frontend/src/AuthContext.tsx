@@ -21,6 +21,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(localStorage.getItem("auth_token"));
   const [isLoading, setIsLoading] = useState(true);
 
+  const apiOrigin = (() => {
+    const value = import.meta.env.VITE_API_ORIGIN as string | undefined;
+    if (!value) return "";
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    return trimmed.replace(/\/+$/, "");
+  })();
+
   const logout = useCallback(() => {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("pinewood_kiosk_session");
@@ -42,10 +50,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       try {
-        const res = await fetch("/api/auth/me", {
+        const base = apiOrigin.length > 0 ? apiOrigin : "";
+        const res = await fetch(`${base}/api/auth/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
+          cache: "no-store",
         });
 
         if (res.ok) {
