@@ -38,6 +38,7 @@ model Event {
   heats          Heat[]
   kioskSessions  KioskSession[]
   guestKioskLinks GuestKioskLink[]
+  popularVotes   PopularVote[]
   
   userId         String?
   user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -60,6 +61,8 @@ model Scout {
   
   wonHeats    Heat[]   @relation("HeatWinner")
   eliminatedHeat Heat? @relation("HeatElimination", fields: [eliminatedHeatId], references: [id], onDelete: SetNull)
+  votesCast   PopularVote[] @relation("PopularVoteVoter")
+  votesReceived PopularVote[] @relation("PopularVoteFavorite")
 }
 
 model Heat {
@@ -112,4 +115,20 @@ model GuestKioskLink {
   event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   sessions  KioskSession[]
+}
+
+model PopularVote {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+
+  eventId        String
+  event          Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  voterScoutId   String
+  voter          Scout    @relation("PopularVoteVoter", fields: [voterScoutId], references: [id], onDelete: Cascade)
+
+  favoriteScoutId String
+  favorite       Scout    @relation("PopularVoteFavorite", fields: [favoriteScoutId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, voterScoutId])
 }

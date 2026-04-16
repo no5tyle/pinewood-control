@@ -317,6 +317,11 @@ const postResultSchema = z.object({
   finishOrder: z.array(z.string().min(1)).min(2),
 });
 
+const popularVoteSchema = z.object({
+  voterScoutId: z.string().min(1),
+  favoriteScoutId: z.string().min(1),
+});
+
 // --- Helpers ---
 
 function safeParseJSON<T>(json: string | null | undefined, defaultValue: T): T {
@@ -1204,6 +1209,91 @@ app.post("/api/kiosk/pair", kioskPairLimiter, async (req, res) => {
   });
 });
 
+app.get("/api/events/:eventId/popular-vote", async (req, res) => {
+  try {
+    const access = await requireEventReadAccess(req as AuthRequest, res, req.params.eventId);
+    if (!access) return;
+    const event = await getEventWithDetails(req.params.eventId);
+    const serialized = serializeEvent(event);
+    const votes = await prisma.popularVote.findMany({
+      where: { eventId: req.params.eventId },
+      select: { voterScoutId: true, favoriteScoutId: true, createdAt: true },
+    });
+
+    const votesByFavorite = new Map<string, number>();
+    votes.forEach((v) => votesByFavorite.set(v.favoriteScoutId, (votesByFavorite.get(v.favoriteScoutId) ?? 0) + 1));
+
+    const ranks = [...serialized.scouts]
+      .map((s: any) => ({
+        scout: s,
+        votes: votesByFavorite.get(s.id) ?? 0,
+      }))
+      .sort((a, b) => {
+        if (a.votes !== b.votes) return b.votes - a.votes;
+        const aNum = Number.parseInt(String(a.scout.carNumber ?? ""), 10);
+        const bNum = Number.parseInt(String(b.scout.carNumber ?? ""), 10);
+        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+        return String(a.scout.name ?? "").localeCompare(String(b.scout.name ?? ""));
+      });
+
+    const winner = ranks.length > 0 && ranks[0].votes > 0 ? ranks[0] : null;
+
+    return res.json({
+      completedAt: event.completedAt?.getTime() ?? null,
+      totalVoters: serialized.scouts.length,
+      totalVotes: votes.length,
+      votes: votes.map((v) => ({
+        voterScoutId: v.voterScoutId,
+        favoriteScoutId: v.favoriteScoutId,
+        createdAt: v.createdAt.getTime(),
+      })),
+      winner: winner ? winner.scout : null,
+      ranks,
+    });
+  } catch {
+    return res.status(404).json({ message: "Event not found" });
+  }
+});
+
+app.post("/api/events/:eventId/popular-vote", async (req, res) => {
+  const parsed = popularVoteSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json(parsed.error.flatten());
+  if (parsed.data.voterScoutId === parsed.data.favoriteScoutId) {
+    return res.status(400).json({ message: "Voter cannot vote for themselves" });
+  }
+
+  try {
+    const access = await requireEventWriteAccess(req as AuthRequest, res, req.params.eventId);
+    if (!access) return;
+    const event = await prisma.event.findUnique({
+      where: { id: req.params.eventId },
+      select: { id: true, completedAt: true },
+    });
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (!event.completedAt) return res.status(400).json({ message: "Event is not complete yet" });
+
+    const scouts = await prisma.scout.findMany({
+      where: { eventId: req.params.eventId, id: { in: [parsed.data.voterScoutId, parsed.data.favoriteScoutId] } },
+      select: { id: true },
+    });
+    if (scouts.length !== 2) return res.status(400).json({ message: "Invalid racer selection" });
+
+    const vote = await prisma.popularVote.upsert({
+      where: { eventId_voterScoutId: { eventId: req.params.eventId, voterScoutId: parsed.data.voterScoutId } },
+      update: { favoriteScoutId: parsed.data.favoriteScoutId },
+      create: {
+        eventId: req.params.eventId,
+        voterScoutId: parsed.data.voterScoutId,
+        favoriteScoutId: parsed.data.favoriteScoutId,
+      },
+    });
+
+    return res.status(201).json({ id: vote.id });
+  } catch {
+    return res.status(404).json({ message: "Event not found" });
+  }
+});
+
 app.get("/api/events/:eventId/results", async (req, res) => {
   try {
     const access = await requireEventReadAccess(req as AuthRequest, res, req.params.eventId);
@@ -1211,11 +1301,33 @@ app.get("/api/events/:eventId/results", async (req, res) => {
     const event = await getEventWithDetails(req.params.eventId);
     const serialized = serializeEvent(event);
     const serializedScoutsById = new Map(serialized.scouts.map((s: any) => [s.id, s]));
+    const votes = await prisma.popularVote.findMany({
+      where: { eventId: req.params.eventId },
+      select: { favoriteScoutId: true },
+    });
+    const voteCounts = new Map<string, number>();
+    votes.forEach((v) => voteCounts.set(v.favoriteScoutId, (voteCounts.get(v.favoriteScoutId) ?? 0) + 1));
+    const popularVoteRanks = [...serialized.scouts]
+      .map((s: any) => ({ scout: s, votes: voteCounts.get(s.id) ?? 0 }))
+      .sort((a, b) => {
+        if (a.votes !== b.votes) return b.votes - a.votes;
+        const aNum = Number.parseInt(String(a.scout.carNumber ?? ""), 10);
+        const bNum = Number.parseInt(String(b.scout.carNumber ?? ""), 10);
+        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+        return String(a.scout.name ?? "").localeCompare(String(b.scout.name ?? ""));
+      });
+    const popularVoteWinner = popularVoteRanks.length > 0 && popularVoteRanks[0].votes > 0 ? popularVoteRanks[0] : null;
     
     return res.json({
       event: serialized,
       completedAt: event.completedAt?.getTime() ?? null,
       champion: serialized.championScoutId ? serializedScoutsById.get(serialized.championScoutId) ?? null : null,
+      popularVote: {
+        totalVoters: serialized.scouts.length,
+        totalVotes: votes.length,
+        winner: popularVoteWinner ? popularVoteWinner.scout : null,
+        ranks: popularVoteRanks,
+      },
       heatResults: event.heats.map((heat: any) => ({
         id: heat.id,
         createdAt: heat.createdAt.getTime(),
@@ -1235,90 +1347,116 @@ app.get("/api/events/:eventId/results", async (req, res) => {
   }
 });
 
+app.use(((err: unknown, _req: Request, res: Response, next: NextFunction) => {
+  if (res.headersSent) return next(err);
+  console.error("Unhandled request error", err);
+  return res.status(500).json({ message: "Internal server error" });
+}) as express.ErrorRequestHandler);
+
 io.on("connection", (socket) => {
-  socket.on("event:subscribe", async (payload: unknown) => {
-    const parsed = z
-      .object({
-        eventId: z.string().min(1),
-        authToken: z.string().min(1).optional().nullable(),
-        kioskToken: z.string().min(1).optional().nullable(),
-      })
-      .safeParse(typeof payload === "string" ? { eventId: payload } : payload);
-
-    if (!parsed.success) return;
-    const { eventId, authToken, kioskToken } = parsed.data;
-
-    let userId: string | null = null;
-    if (authToken) {
+  socket.on("event:subscribe", (payload: unknown) => {
+    void (async () => {
       try {
-        const jwtPayload = jwt.verify(authToken, JWT_SECRET) as { id: string; email: string };
-        userId = jwtPayload.id;
-      } catch {
-        userId = null;
-      }
-    }
+        const parsed = z
+          .object({
+            eventId: z.string().min(1),
+            authToken: z.string().min(1).optional().nullable(),
+            kioskToken: z.string().min(1).optional().nullable(),
+          })
+          .safeParse(typeof payload === "string" ? { eventId: payload } : payload);
 
-    const event = await prisma.event.findUnique({
-      where: { id: eventId },
-      select: { id: true, isGuest: true, userId: true },
-    });
-    if (!event) return;
+        if (!parsed.success) return;
+        const { eventId, authToken, kioskToken } = parsed.data;
 
-    if (event.isGuest && !event.userId) {
-      socket.join(eventId);
-      try {
-        const full = await getEventWithDetails(eventId);
-        socket.emit("event:update", serializeEvent(full));
-      } catch {}
-      return;
-    }
-
-    if (userId && event.userId === userId) {
-      socket.join(eventId);
-      try {
-        const full = await getEventWithDetails(eventId);
-        socket.emit("event:update", serializeEvent(full));
-      } catch {}
-      return;
-    }
-
-    if (kioskToken) {
-      const session = (await prisma.kioskSession.findUnique({ where: { token: kioskToken } })) as any;
-      if (!session) return;
-      if (Date.now() > session.expiresAt.getTime()) return;
-      if (session.eventId !== eventId) return;
-
-      if (event.userId) {
-        if (!session.accessExpiresAt) return;
-        if (Date.now() > session.accessExpiresAt.getTime()) return;
-        if (session.guestKioskLinkId) {
-          const link = (await (prisma as any).guestKioskLink.findUnique({
-            where: { id: session.guestKioskLinkId },
-            select: { revokedAt: true, expiresAt: true },
-          })) as { revokedAt: Date | null; expiresAt: Date } | null;
-          if (!link) return;
-          if (link.revokedAt) return;
-          if (Date.now() > link.expiresAt.getTime()) return;
+        let userId: string | null = null;
+        if (authToken) {
+          try {
+            const jwtPayload = jwt.verify(authToken, JWT_SECRET) as { id: string; email: string };
+            userId = jwtPayload.id;
+          } catch {
+            userId = null;
+          }
         }
-      }
 
-      socket.join(eventId);
-      try {
-        const full = await getEventWithDetails(eventId);
-        socket.emit("event:update", serializeEvent(full));
-      } catch {}
-    }
+        const event = await prisma.event.findUnique({
+          where: { id: eventId },
+          select: { id: true, isGuest: true, userId: true },
+        });
+        if (!event) return;
+
+        if (event.isGuest && !event.userId) {
+          socket.join(eventId);
+          try {
+            const full = await getEventWithDetails(eventId);
+            socket.emit("event:update", serializeEvent(full));
+          } catch {}
+          return;
+        }
+
+        if (userId && event.userId === userId) {
+          socket.join(eventId);
+          try {
+            const full = await getEventWithDetails(eventId);
+            socket.emit("event:update", serializeEvent(full));
+          } catch {}
+          return;
+        }
+
+        if (kioskToken) {
+          const session = (await prisma.kioskSession.findUnique({ where: { token: kioskToken } })) as any;
+          if (!session) return;
+          if (Date.now() > session.expiresAt.getTime()) return;
+          if (session.eventId !== eventId) return;
+
+          if (event.userId) {
+            if (!session.accessExpiresAt) return;
+            if (Date.now() > session.accessExpiresAt.getTime()) return;
+            if (session.guestKioskLinkId) {
+              const link = (await (prisma as any).guestKioskLink.findUnique({
+                where: { id: session.guestKioskLinkId },
+                select: { revokedAt: true, expiresAt: true },
+              })) as { revokedAt: Date | null; expiresAt: Date } | null;
+              if (!link) return;
+              if (link.revokedAt) return;
+              if (Date.now() > link.expiresAt.getTime()) return;
+            }
+          }
+
+          socket.join(eventId);
+          try {
+            const full = await getEventWithDetails(eventId);
+            socket.emit("event:update", serializeEvent(full));
+          } catch {}
+        }
+      } catch (err) {
+        console.error("Unhandled socket error", err);
+      }
+    })();
   });
 });
 
 const port = Number(process.env.PORT ?? 8787);
 
 // Periodic cleanup
-setInterval(async () => {
-  const now = new Date();
-  await prisma.pairingRequest.deleteMany({ where: { expiresAt: { lt: now } } });
-  await prisma.kioskSession.deleteMany({ where: { expiresAt: { lt: now } } });
+setInterval(() => {
+  void (async () => {
+    try {
+      const now = new Date();
+      await prisma.pairingRequest.deleteMany({ where: { expiresAt: { lt: now } } });
+      await prisma.kioskSession.deleteMany({ where: { expiresAt: { lt: now } } });
+    } catch (err) {
+      console.error("Periodic cleanup error", err);
+    }
+  })();
 }, 60_000);
+
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection", reason);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception", err);
+});
 
 httpServer.listen(port, () => {
   console.log(`Backend running on http://localhost:${port}`);

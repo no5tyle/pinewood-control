@@ -61,6 +61,12 @@ type EventResults = {
   event: EventState;
   completedAt: number | null;
   champion: Scout | null;
+  popularVote: {
+    totalVoters: number;
+    totalVotes: number;
+    winner: Scout | null;
+    ranks: Array<{ scout: Scout; votes: number }>;
+  };
   heatResults: Array<{
     id: string;
     createdAt: number;
@@ -987,10 +993,47 @@ function RaceControlPage() {
   const [latePenalty, setLatePenalty] = useState("");
   const [lateError, setLateError] = useState("");
   const [lateSaving, setLateSaving] = useState(false);
+  const [popularVote, setPopularVote] = useState<{
+    completedAt: number | null;
+    totalVoters: number;
+    totalVotes: number;
+    votes: Array<{ voterScoutId: string; favoriteScoutId: string; createdAt: number }>;
+    winner: Scout | null;
+    ranks: Array<{ scout: Scout; votes: number }>;
+  } | null>(null);
+  const [popularLoading, setPopularLoading] = useState(false);
+  const [popularError, setPopularError] = useState("");
+  const [popularSubmitting, setPopularSubmitting] = useState(false);
 
   useEffect(() => {
     setFinishOrder([]);
   }, [currentHeat?.id]);
+
+  const refreshPopularVote = useCallback(async () => {
+    if (!event?.id) return;
+    setPopularLoading(true);
+    setPopularError("");
+    try {
+      const data = await api<{
+        completedAt: number | null;
+        totalVoters: number;
+        totalVotes: number;
+        votes: Array<{ voterScoutId: string; favoriteScoutId: string; createdAt: number }>;
+        winner: Scout | null;
+        ranks: Array<{ scout: Scout; votes: number }>;
+      }>(`/events/${event.id}/popular-vote`);
+      setPopularVote(data);
+    } catch (e) {
+      setPopularError((e as Error).message);
+    } finally {
+      setPopularLoading(false);
+    }
+  }, [event?.id]);
+
+  useEffect(() => {
+    if (!event?.championScoutId) return;
+    void refreshPopularVote();
+  }, [event?.championScoutId, refreshPopularVote]);
 
   const ordinal = (n: number) => {
     const mod100 = n % 100;
@@ -1016,6 +1059,30 @@ function RaceControlPage() {
     const picked = new Set(finishOrder);
     return currentHeat.laneAssignments.filter((id) => !picked.has(id));
   }, [currentHeat, finishOrder]);
+
+  const popularVoteVotersSorted = useMemo(() => {
+    if (!event) return [];
+    return [...event.scouts].sort((a, b) => {
+      const aNum = Number.parseInt(a.carNumber, 10);
+      const bNum = Number.parseInt(b.carNumber, 10);
+      if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+      return a.name.localeCompare(b.name);
+    });
+  }, [event]);
+
+  const votedVoterIds = useMemo(() => new Set((popularVote?.votes ?? []).map((v) => v.voterScoutId)), [popularVote?.votes]);
+  const nextVoter = useMemo(() => popularVoteVotersSorted.find((s) => !votedVoterIds.has(s.id)) ?? null, [popularVoteVotersSorted, votedVoterIds]);
+  const favoriteCandidates = useMemo(() => {
+    if (!event || !nextVoter) return [];
+    return [...event.scouts]
+      .filter((s) => s.id !== nextVoter.id)
+      .sort((a, b) => {
+        const aNum = Number.parseInt(a.carNumber, 10);
+        const bNum = Number.parseInt(b.carNumber, 10);
+        if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+        return a.name.localeCompare(b.name);
+      });
+  }, [event, nextVoter]);
 
   const selectFinisher = (scoutId: string) => {
     if (!currentHeat) return;
@@ -1099,6 +1166,23 @@ function RaceControlPage() {
       setLateError((err as Error).message);
     } finally {
       setLateSaving(false);
+    }
+  };
+
+  const submitPopularVote = async (favoriteScoutId: string) => {
+    if (!event || !nextVoter) return;
+    setPopularSubmitting(true);
+    setPopularError("");
+    try {
+      await api(`/events/${event.id}/popular-vote`, {
+        method: "POST",
+        body: JSON.stringify({ voterScoutId: nextVoter.id, favoriteScoutId }),
+      });
+      await refreshPopularVote();
+    } catch (e) {
+      setPopularError((e as Error).message);
+    } finally {
+      setPopularSubmitting(false);
     }
   };
 
@@ -1187,6 +1271,75 @@ function RaceControlPage() {
           <h2>Tournament Winner</h2>
           <p>{scoutById.get(event.championScoutId)?.name}</p>
           <Link to={`/results/${event.id}`} className="link-btn">View final results</Link>
+        </section>
+      ) : null}
+      {event.championScoutId ? (
+        <section className="card">
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+            <h2 style={{ margin: 0 }}>Popular Vote</h2>
+            <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>
+              Refresh
+            </button>
+          </div>
+          {popularLoading ? <p className="muted">Loading votes…</p> : null}
+          {popularError ? <p className="error">{popularError}</p> : null}
+          {popularVote ? (
+            <>
+              <p className="muted" style={{ marginTop: "0.5rem" }}>
+                {popularVote.totalVotes}/{popularVote.totalVoters} votes recorded
+              </p>
+              {!nextVoter ? (
+                <>
+                  <h3 style={{ margin: "0.5rem 0 0" }}>Winner</h3>
+                  {popularVote.winner ? (
+                    <p style={{ margin: 0 }}>
+                      <strong>#{popularVote.winner.carNumber}</strong> {popularVote.winner.name}
+                      {popularVote.winner.groupName ? <span className="muted"> ({popularVote.winner.groupName})</span> : null}
+                    </p>
+                  ) : (
+                    <p className="muted" style={{ margin: 0 }}>No votes yet.</p>
+                  )}
+                  <details style={{ marginTop: "0.75rem" }}>
+                    <summary>Show ranks</summary>
+                    <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+                      {popularVote.ranks.map((r) => (
+                        <li key={r.scout.id}>
+                          <strong>#{r.scout.carNumber}</strong> {r.scout.name}
+                          {r.scout.groupName ? <span className="muted"> ({r.scout.groupName})</span> : null}
+                          <span className="muted"> — {r.votes} vote{r.votes === 1 ? "" : "s"}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                </>
+              ) : (
+                <div className="popular-vote-panel">
+                  <div className="popular-vote-voter">
+                    <div className="popular-vote-voter-label">Voter</div>
+                    <div className="popular-vote-voter-number">#{nextVoter.carNumber}</div>
+                    <div className="popular-vote-voter-name">{nextVoter.name}</div>
+                    {nextVoter.groupName ? <div className="popular-vote-voter-group">{nextVoter.groupName}</div> : null}
+                  </div>
+                  <div className="popular-vote-choices">
+                    <div className="popular-vote-choices-title">Pick favourite car</div>
+                    <div className="stack">
+                      {favoriteCandidates.map((s) => (
+                        <button key={s.id} onClick={() => void submitPopularVote(s.id)} disabled={popularSubmitting}>
+                          <span className="scout-pick">
+                            <span className="scout-pick-number">#{s.carNumber}</span>
+                            <span className="scout-pick-name">{s.name}</span>
+                            {s.groupName ? <span className="scout-pick-group">({s.groupName})</span> : null}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="muted">No vote data yet.</p>
+          )}
         </section>
       ) : null}
       {submitError ? <p className="error">{submitError}</p> : null}
@@ -2010,6 +2163,48 @@ function ResultsPage() {
   }
   if (!results) return <main className="home-page"><p>Loading results...</p></main>;
 
+  const heatResultsSorted = useMemo(
+    () => [...results.heatResults].sort((a, b) => a.createdAt - b.createdAt),
+    [results.heatResults]
+  );
+
+  const pointsAfterByHeatId = useMemo(() => {
+    const finalPointsById = new Map(results.event.scouts.map((s) => [s.id, s.points]));
+    const gainedById = new Map<string, number>();
+    heatResultsSorted.forEach((heat) => {
+      heat.placements.forEach((p) => {
+        const id = p.scout?.id;
+        if (!id) return;
+        gainedById.set(id, (gainedById.get(id) ?? 0) + (p.place - 1));
+      });
+    });
+
+    const currentPoints = new Map<string, number>();
+    results.event.scouts.forEach((s) => {
+      const final = finalPointsById.get(s.id) ?? 0;
+      const gained = gainedById.get(s.id) ?? 0;
+      currentPoints.set(s.id, final - gained);
+    });
+
+    const out = new Map<string, Map<string, number>>();
+    heatResultsSorted.forEach((heat) => {
+      heat.placements.forEach((p) => {
+        const id = p.scout?.id;
+        if (!id) return;
+        currentPoints.set(id, (currentPoints.get(id) ?? 0) + (p.place - 1));
+      });
+      const snapshot = new Map<string, number>();
+      heat.placements.forEach((p) => {
+        const id = p.scout?.id;
+        if (!id) return;
+        snapshot.set(id, currentPoints.get(id) ?? 0);
+      });
+      out.set(heat.id, snapshot);
+    });
+
+    return out;
+  }, [heatResultsSorted, results.event.scouts]);
+
   return (
     <main className="home-page">
       <AppHeader />
@@ -2030,6 +2225,38 @@ function ResultsPage() {
         </section>
 
         <section className="card">
+          <h2>Popular Vote</h2>
+          {results.popularVote.totalVotes === 0 ? (
+            <p className="muted">No votes recorded yet.</p>
+          ) : (
+            <>
+              <p style={{ margin: 0 }}>
+                Winner:{" "}
+                <strong>
+                  {results.popularVote.winner ? `#${results.popularVote.winner.carNumber} ${results.popularVote.winner.name}` : "TBD"}
+                </strong>
+                {results.popularVote.winner?.groupName ? <span className="muted"> ({results.popularVote.winner.groupName})</span> : null}
+              </p>
+              <p className="muted" style={{ margin: 0 }}>
+                {results.popularVote.totalVotes}/{results.popularVote.totalVoters} votes recorded
+              </p>
+              <details style={{ marginTop: "0.5rem" }}>
+                <summary>Show ranks</summary>
+                <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+                  {results.popularVote.ranks.map((r) => (
+                    <li key={r.scout.id}>
+                      <strong>#{r.scout.carNumber}</strong> {r.scout.name}
+                      {r.scout.groupName ? <span className="muted"> ({r.scout.groupName})</span> : null}
+                      <span className="muted"> — {r.votes} vote{r.votes === 1 ? "" : "s"}</span>
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            </>
+          )}
+        </section>
+
+        <section className="card">
           <h2>Final Standings</h2>
           <div className="standings-grid">
             {results.event.standings.map((scout, index) => (
@@ -2047,9 +2274,9 @@ function ResultsPage() {
 
         <section className="card">
           <h2>Race History</h2>
-          {results.heatResults.length === 0 ? <p className="muted">No races recorded yet.</p> : null}
+          {heatResultsSorted.length === 0 ? <p className="muted">No races recorded yet.</p> : null}
           <div className="race-history">
-            {results.heatResults.map((heat, index) => (
+            {heatResultsSorted.map((heat, index) => (
               <div key={heat.id} className="race-item">
                 <div className="race-meta">
                   <strong>Race {index + 1}</strong>
@@ -2062,10 +2289,20 @@ function ResultsPage() {
                     {heat.placements.map((placement) => (
                       <li key={`${heat.id}-${placement.place}`}>
                         <span className="place-chip">#{placement.place}</span>
-                        <span className={placement.scout && heat.eliminatedScoutIds.includes(placement.scout.id) ? "eliminated-strike" : ""}>
+                        <span
+                          className={[
+                            "placement-name",
+                            placement.scout && heat.eliminatedScoutIds.includes(placement.scout.id) ? "eliminated-strike" : "",
+                          ].filter(Boolean).join(" ")}
+                        >
                           {placement.scout ? `#${placement.scout.carNumber} ${placement.scout.name}` : "Unknown"}
                           {placement.scout?.groupName ? ` (${placement.scout.groupName})` : ""}
                         </span>
+                        {placement.scout ? (
+                          <span className="placement-points muted">
+                            {pointsAfterByHeatId.get(heat.id)?.get(placement.scout.id) ?? placement.scout.points} pts
+                          </span>
+                        ) : null}
                       </li>
                     ))}
                   </ol>
