@@ -552,7 +552,8 @@ function KioskBootPage() {
   return (
     <main className="home-page">
       <AppHeader />
-      <section className="card success" style={{ textAlign: "center", padding: "4rem 2rem" }}>
+      <section className="card success" style={{ textAlign: "center", padding: "4rem 2rem", position: "relative" }}>
+        <button className="close-overlay" onClick={() => navigate(-1)} aria-label="Close">×</button>
         <h1>Pinewood Derby Control</h1>
         <p>Ready to start a new tournament?</p>
         <button onClick={startKiosk} disabled={loading} style={{ fontSize: "1.5rem", padding: "1rem 2rem" }}>
