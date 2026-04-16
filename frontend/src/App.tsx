@@ -84,7 +84,7 @@ const guestEventStorageKey = "pinewood_guest_event_ids";
 const guestAccessUrlStorageKey = "pinewood_guest_access_urls";
 const quickStartDismissedStorageKey = "pinewood_quickstart_dismissed_v1";
 const guestClaimStatusEventName = "pinewood:guest-events-claim-status";
-type ThemeName = "system" | "scouts-au-cubs" | "scouts-green" | "scouts-joeys" | "scouts-america";
+type ThemeName = "system" | "scouts-au-cubs" | "scouts-america";
 
 function safeParseStorageJSON<T>(value: string | null, fallback: T): T {
   if (!value) return fallback;
@@ -734,12 +734,12 @@ function ConfigurePage() {
       <h1>Configure Event</h1>
       <p className="muted">Setup your tournament parameters.</p>
       {event.isGuest && !user && (
-        <div className="banner info">
+        <div className="banner info desktop-only">
           This is a guest event. <Link to="/login">Login</Link> or <Link to="/signup">Signup</Link> to save it to your account.
         </div>
       )}
       {event.isGuest && user && (
-        <div className="banner info">
+        <div className="banner info desktop-only">
           This is a guest event. <button onClick={claimEvent} className="text-btn">Save to my account</button>
         </div>
       )}
@@ -772,20 +772,6 @@ function ConfigurePage() {
               <button
                 type="button"
                 className="theme-btn"
-                data-theme="scouts-joeys"
-                onClick={() => {
-                  setTheme("scouts-joeys");
-                  setError("");
-                  setStep(2);
-                }}
-              >
-                <div className="theme-swatch" data-theme="scouts-joeys" />
-                <div className="theme-title">Joeys</div>
-                <div className="theme-subtitle">Scouts Australia</div>
-              </button>
-              <button
-                type="button"
-                className="theme-btn"
                 data-theme="scouts-au-cubs"
                 onClick={() => {
                   setTheme("scouts-au-cubs");
@@ -794,7 +780,7 @@ function ConfigurePage() {
                 }}
               >
                 <div className="theme-swatch" data-theme="scouts-au-cubs" />
-                <div className="theme-title">Cubs</div>
+                <div className="theme-title">Cubs Australia</div>
                 <div className="theme-subtitle">Scouts Australia</div>
               </button>
               <button
@@ -808,7 +794,7 @@ function ConfigurePage() {
                 }}
               >
                 <div className="theme-swatch" data-theme="scouts-america" />
-                <div className="theme-title">Scouts America</div>
+                <div className="theme-title">BSA</div>
                 <div className="theme-subtitle">BSA styling</div>
               </button>
             </div>
@@ -1308,12 +1294,12 @@ function KioskPage() {
           <section className="kiosk-board">
             <h1>{event.name}</h1>
             {event.isGuest && !user && (
-              <div className="banner info">
+              <div className="banner info desktop-only">
                 This is a guest event. <Link to="/login">Login</Link> or <Link to="/signup">Signup</Link> to save it to your account.
               </div>
             )}
             {event.isGuest && user && (
-              <div className="banner info">
+              <div className="banner info desktop-only">
                 This is a guest event. <button onClick={claimEvent} className="text-btn">Save to my account</button>
               </div>
             )}
@@ -1406,7 +1392,7 @@ function KioskPage() {
           ) : null}
         </>
       ) : null}
-      {event && !isNewEvent ? (
+      {event?.id ? (
         <button
           className={`kiosk-share-btn ${shareStatus === "copied" ? "copied" : ""}`}
           onClick={() => void copyKioskLink()}

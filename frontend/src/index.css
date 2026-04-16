@@ -92,15 +92,6 @@
   --banner-text: #ffffff;
 }
 
-.kiosk-page[data-kiosk-theme="scouts-joeys"] {
-  --kiosk-bg: #0a1b2e;
-  --kiosk-panel: #1c4270;
-  --kiosk-card: #274d7a;
-  --kiosk-text: #ffffff;
-  --banner-bg: #ba6228;
-  --banner-text: #ffffff;
-}
-
 .kiosk-page[data-kiosk-theme="scouts-america"] {
   --kiosk-bg: #001a3a;
   --kiosk-panel: #003f87;
@@ -647,10 +638,6 @@ label {
 
 .theme-swatch[data-theme="system"] {
   background: linear-gradient(90deg, #f8fafc 0%, #f8fafc 50%, #0f172a 50%, #0f172a 100%);
-}
-
-.theme-swatch[data-theme="scouts-joeys"] {
-  background: linear-gradient(90deg, #0a1b2e 0%, #0a1b2e 60%, #ba6228 60%, #ba6228 100%);
 }
 
 .theme-swatch[data-theme="scouts-au-cubs"] {
