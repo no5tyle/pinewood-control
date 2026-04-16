@@ -1232,6 +1232,15 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
     const access = await requireEventWriteAccess(req as AuthRequest, res, eventId);
     if (!access) return;
 
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      select: { id: true, setupComplete: true },
+    });
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.setupComplete) return res.status(400).json({ message: "Cannot import patrols after setup is complete" });
+    const heatCount = await prisma.heat.count({ where: { eventId } });
+    if (heatCount > 0) return res.status(400).json({ message: "Cannot import patrols after heats have been generated" });
+
     const patrols = await prisma.racePatrol.findMany({
       where: { id: { in: parsed.data.patrolIds }, userId: req.user.id },
       include: { racers: true },
@@ -1244,24 +1253,19 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
     if (racers.length === 0) return res.status(400).json({ message: "No racers to import" });
 
     const racersById = new Map(racers.map((r) => [r.id, r]));
-    const already = await prisma.scout.findMany({
+    const existingFromPatrol = await prisma.scout.findMany({
       where: { eventId, sourcePatrolRacerId: { in: [...racersById.keys()] } },
       select: { sourcePatrolRacerId: true },
     });
-    if (already.length > 0) {
-      const alreadyIds = new Set(already.map((s) => s.sourcePatrolRacerId).filter((id): id is string => typeof id === "string"));
-      const alreadyPatrolIds = new Set(
-        patrols
-          .filter((p) => p.racers.some((r) => alreadyIds.has(r.id)))
-          .map((p) => p.id)
-      );
-      const alreadyNames = patrols.filter((p) => alreadyPatrolIds.has(p.id)).map((p) => p.name);
-      return res.status(400).json({
-        message:
-          alreadyNames.length > 0
-            ? `Patrol already added to this event: ${alreadyNames.join(", ")}`
-            : "One or more patrol racers have already been added to this event",
-      });
+    const alreadyIds = new Set(
+      existingFromPatrol
+        .map((s) => s.sourcePatrolRacerId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    );
+
+    const missingRacers = racers.filter((r) => !alreadyIds.has(r.id));
+    if (missingRacers.length === 0) {
+      return res.status(400).json({ message: "All selected patrol racers are already in this event" });
     }
 
     const existing = await prisma.scout.findMany({
@@ -1273,10 +1277,10 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
       return Number.isFinite(n) ? Math.max(max, n) : max;
     }, 0);
 
-    const nextNumbers = shuffle(Array.from({ length: racers.length }, (_, idx) => String(maxCarNumber + idx + 1)));
+    const nextNumbers = shuffle(Array.from({ length: missingRacers.length }, (_, idx) => String(maxCarNumber + idx + 1)));
 
     await prisma.$transaction(
-      racers.map((r, idx) =>
+      missingRacers.map((r, idx) =>
         prisma.scout.create({
           data: {
             id: nanoid(10),
@@ -1295,7 +1299,31 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
     );
 
     publishEvent(eventId);
-    return res.status(201).json({ created: racers.length });
+    return res.status(201).json({ created: missingRacers.length, skipped: racers.length - missingRacers.length });
+  } catch {
+    return res.status(404).json({ message: "Event not found" });
+  }
+});
+
+app.delete("/api/events/:eventId/scouts/:scoutId", async (req, res) => {
+  const eventId = req.params.eventId as string;
+  const scoutId = req.params.scoutId as string;
+  try {
+    const access = await requireEventWriteAccess(req as AuthRequest, res, eventId);
+    if (!access) return;
+
+    const event = await prisma.event.findUnique({ where: { id: eventId }, select: { id: true, setupComplete: true } });
+    if (!event) return res.status(404).json({ message: "Event not found" });
+    if (event.setupComplete) return res.status(400).json({ message: "Cannot delete racers after setup is complete" });
+    const heatCount = await prisma.heat.count({ where: { eventId } });
+    if (heatCount > 0) return res.status(400).json({ message: "Cannot delete racers after heats have been generated" });
+
+    const scout = await prisma.scout.findUnique({ where: { id: scoutId }, select: { id: true, eventId: true } });
+    if (!scout || scout.eventId !== eventId) return res.status(404).json({ message: "Racer not found" });
+
+    await prisma.scout.delete({ where: { id: scoutId } });
+    publishEvent(eventId);
+    return res.status(204).send();
   } catch {
     return res.status(404).json({ message: "Event not found" });
   }

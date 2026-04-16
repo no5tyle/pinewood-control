@@ -1131,6 +1131,19 @@ function AddScoutsPage() {
     }
   };
 
+  const removeRacer = async (scoutId: string) => {
+    if (!eventId) return;
+    const scout = event?.scouts.find((s) => s.id === scoutId);
+    if (!scout) return;
+    if (!window.confirm(`Remove #${scout.carNumber} ${scout.name} from this event?`)) return;
+    setError("");
+    try {
+      await api(`/events/${eventId}/scouts/${scoutId}`, { method: "DELETE" });
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     setPatrolLoading(true);
@@ -1141,22 +1154,29 @@ function AddScoutsPage() {
       .finally(() => setPatrolLoading(false));
   }, [user]);
 
-  const alreadyImportedPatrolIds = useMemo(() => {
-    if (!event) return new Set<string>();
+  const patrolImportStatusById = useMemo(() => {
+    const out = new Map<string, { total: number; missing: number }>();
+    if (!event) return out;
     const importedRacerIds = new Set(
       event.scouts
         .map((s) => s.sourcePatrolRacerId)
         .filter((id): id is string => typeof id === "string" && id.length > 0)
     );
-    const patrolIds = new Set<string>();
     patrols.forEach((p) => {
-      if (p.racers.some((r) => importedRacerIds.has(r.id))) patrolIds.add(p.id);
+      const total = p.racers.length;
+      const missing = p.racers.reduce((count, r) => count + (importedRacerIds.has(r.id) ? 0 : 1), 0);
+      out.set(p.id, { total, missing });
     });
-    return patrolIds;
+    return out;
   }, [event, patrols]);
 
+  const selectedPatrolMissingCount = useMemo(() => {
+    return selectedPatrolIds.reduce((sum, id) => sum + (patrolImportStatusById.get(id)?.missing ?? 0), 0);
+  }, [selectedPatrolIds, patrolImportStatusById]);
+
   const togglePatrol = (patrolId: string) => {
-    if (alreadyImportedPatrolIds.has(patrolId)) return;
+    const missing = patrolImportStatusById.get(patrolId)?.missing ?? 0;
+    if (missing <= 0) return;
     setSelectedPatrolIds((prev) => (prev.includes(patrolId) ? prev.filter((id) => id !== patrolId) : [...prev, patrolId]));
   };
 
@@ -1223,19 +1243,29 @@ function AddScoutsPage() {
           {patrols.length > 0 ? (
             <div className="stack" style={{ gap: "0.5rem" }}>
               {patrols.map((p) => (
+                (() => {
+                  const status = patrolImportStatusById.get(p.id);
+                  const missing = status?.missing ?? p.racers.length;
+                  const total = status?.total ?? p.racers.length;
+                  const fullyAdded = total > 0 && missing === 0;
+                  const partiallyAdded = total > 0 && missing > 0 && missing < total;
+                  const statusText = fullyAdded ? "Added" : partiallyAdded ? `Missing ${missing}` : "";
+                  return (
                 <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 700 }}>
                   <input
                     type="checkbox"
                     checked={selectedPatrolIds.includes(p.id)}
                     onChange={() => togglePatrol(p.id)}
-                    disabled={alreadyImportedPatrolIds.has(p.id)}
+                    disabled={missing === 0}
                     style={{ width: "1.1rem", height: "1.1rem" }}
                   />
                   <span style={{ flex: 1 }}>
                     {p.name} <span className="muted">({p.racers.length} racer{p.racers.length === 1 ? "" : "s"})</span>
                   </span>
-                  {alreadyImportedPatrolIds.has(p.id) ? <span className="muted">Added</span> : null}
+                  {statusText ? <span className="muted">{statusText}</span> : null}
                 </label>
+                  );
+                })()
               ))}
             </div>
           ) : null}
@@ -1252,9 +1282,9 @@ function AddScoutsPage() {
             <button
               type="button"
               onClick={() => void importSelectedPatrols()}
-              disabled={selectedPatrolIds.length === 0 || importingPatrols}
+              disabled={selectedPatrolIds.length === 0 || importingPatrols || selectedPatrolMissingCount === 0}
             >
-              {importingPatrols ? "Adding…" : `Add ${selectedPatrolIds.length} patrol${selectedPatrolIds.length === 1 ? "" : "s"}`}
+              {importingPatrols ? "Adding…" : `Add ${selectedPatrolMissingCount} racer${selectedPatrolMissingCount === 1 ? "" : "s"}`}
             </button>
           </div>
         </section>
@@ -1272,6 +1302,9 @@ function AddScoutsPage() {
                   <span className="muted"> • {s.weight}{event.weightUnit === "oz" ? "oz" : "g"}</span>
                 ) : null}
               </span>
+              <button type="button" className="danger-btn entry-remove" onClick={() => void removeRacer(s.id)} aria-label="Remove racer">
+                ×
+              </button>
             </li>
           ))}
         </ul>

@@ -1259,6 +1259,16 @@ label {
   background: #fecaca;
 }
 
+.entry-remove {
+  width: 2.1rem;
+  height: 2.1rem;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
 .guest-access-inline {
   display: grid;
   grid-template-columns: minmax(160px, 1fr) auto auto;
