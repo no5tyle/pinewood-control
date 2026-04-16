@@ -171,14 +171,28 @@ function ClaimLocalGuestEventsOnAuth() {
 }
 
 function getQrPrefix(): string {
+  const canonical = "https://pinewood.nostyle.app";
   const envPrefix = import.meta.env.VITE_QR_PREFIX as string | undefined;
-  if (envPrefix && envPrefix.trim().length > 0) return envPrefix.trim().replace(/\/+$/, "");
-  const filePrefix = appConfig.qrPrefix?.trim();
-  if (filePrefix) return filePrefix.replace(/\/+$/, "");
-  if (window.location.hostname === "nostyle.app" || window.location.hostname === "www.nostyle.app") {
-    return "https://pinewood.nostyle.app";
+  if (envPrefix && envPrefix.trim().length > 0) {
+    const normalized = envPrefix.trim().replace(/\/+$/, "");
+    if (normalized === "https://nostyle.app" || normalized === "https://www.nostyle.app") return canonical;
+    return normalized;
   }
-  return window.location.origin;
+
+  if (window.location.hostname === "nostyle.app" || window.location.hostname === "www.nostyle.app") {
+    return canonical;
+  }
+
+  if (window.location.hostname === "pinewood.nostyle.app") {
+    return canonical;
+  }
+
+  const filePrefix = appConfig.qrPrefix?.trim();
+  if (filePrefix && (window.location.hostname === "localhost" || window.location.hostname.startsWith("192.168.") || window.location.hostname.startsWith("10."))) {
+    return filePrefix.replace(/\/+$/, "");
+  }
+
+  return window.location.origin.replace(/\/+$/, "");
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -894,6 +908,7 @@ function KioskPage() {
   const { event, error, setEvent } = useEvent(eventId === "new" ? undefined : eventId);
   const [sessionToken, setSessionToken] = useState("");
   const [qrSrc, setQrSrc] = useState("");
+  const [qrUrl, setQrUrl] = useState("");
   const [qrToken, setQrToken] = useState("");
   const [pairingCode, setPairingCode] = useState("");
   const [sessionError, setSessionError] = useState("");
@@ -989,6 +1004,7 @@ function KioskPage() {
           setQrToken(res.qrToken);
           setPairingCode(res.pairingCode);
           const url = `${getQrPrefix()}/pair/${res.qrToken}`;
+          setQrUrl(url);
           return QRCode.toDataURL(url, { width: 320, margin: 1 });
         })
         .then(setQrSrc)
@@ -1164,6 +1180,7 @@ function KioskPage() {
                   <code>{pairingCode}</code>
                 </div>
               ) : null}
+              {qrUrl ? <div className="overlay-note" style={{ wordBreak: "break-all" }}>{qrUrl}</div> : null}
               <p className="overlay-note">Scan QR and enter code to link device</p>
               <div className="overlay-actions">
                 <a href={`/pair/${qrToken}?code=${pairingCode}`} target="_blank" rel="noopener noreferrer" className="direct-link">
