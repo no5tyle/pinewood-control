@@ -2048,14 +2048,18 @@ function RacePatrolsPage() {
           {patrols.map((p) => (
             <div key={p.id} className="event-item card" style={{ gap: "0.5rem" }}>
               <div className="event-info">
-                <h3 style={{ margin: 0 }}>{p.name}</h3>
-                <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
-              </div>
-              <div className="inline-actions patrol-actions">
-                <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>
-                <button className="danger-btn icon-btn" onClick={() => void deletePatrol(p.id)} aria-label="Delete patrol" title="Delete">
-                  <TrashIcon />
-                </button>
+                <div className="patrol-row">
+                  <div className="patrol-row-left">
+                    <h3 style={{ margin: 0 }}>{p.name}</h3>
+                    <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
+                  </div>
+                  <div className="inline-actions patrol-actions">
+                    <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>
+                    <button className="danger-btn icon-btn" onClick={() => void deletePatrol(p.id)} aria-label="Delete patrol" title="Delete">
+                      <TrashIcon />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           ))}
