@@ -1041,9 +1041,41 @@ function KioskPage() {
   const [previousWinner, setPreviousWinner] = useState<Scout | null>(null);
   const [showWinnerOverlay, setShowWinnerOverlay] = useState(false);
   const [lastActiveHeatId, setLastActiveHeatId] = useState<string | null>(null);
+  const [shareStatus, setShareStatus] = useState<"idle" | "copying" | "copied">("idle");
+  const shareTimerRef = useRef<number | null>(null);
 
   const isNewEvent = eventId === "new" || (event?.name === "New Pinewood Derby Event" && !event?.setupComplete);
   const kioskTheme = (event?.theme as ThemeName | undefined) ?? "system";
+
+  useEffect(() => {
+    return () => {
+      if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
+    };
+  }, []);
+
+  const copyKioskLink = async () => {
+    if (!event?.id) return;
+    setShareStatus("copying");
+
+    const base = getQrPrefix();
+    let url = `${base}/kiosk/${event.id}`;
+    if (user && !event.isGuest) {
+      try {
+        const res = await api<{ token: string; expiresAt: number }>(`/events/${event.id}/guest-kiosk-link`, { method: "POST" });
+        url = `${base}/guest-kiosk/${res.token}`;
+      } catch {}
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      window.prompt("Copy this link:", url);
+    }
+
+    setShareStatus("copied");
+    if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
+    shareTimerRef.current = window.setTimeout(() => setShareStatus("idle"), 1500);
+  };
 
   const claimEvent = async () => {
     if (!event?.id) return;
@@ -1314,6 +1346,16 @@ function KioskPage() {
             </div>
           ) : null}
         </>
+      ) : null}
+      {event && !isNewEvent ? (
+        <button
+          className={`kiosk-share-btn ${shareStatus === "copied" ? "copied" : ""}`}
+          onClick={() => void copyKioskLink()}
+          disabled={shareStatus === "copying"}
+          aria-label="Copy kiosk link"
+        >
+          {shareStatus === "copied" ? "✓ Link copied" : shareStatus === "copying" ? "…" : "🔗 Link"}
+        </button>
       ) : null}
     </main>
   );
