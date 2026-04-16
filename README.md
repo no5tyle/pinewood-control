@@ -7,6 +7,8 @@ Pinewood Control is a web app for running a Pinewood Derby style race with a **K
 - Anonymous “Popular Vote” with a controller-triggered reveal + kiosk countdown
 - Signed-in accounts with reusable **Race Patrols** (racer groups) for faster event setup
 
+Live app: https://pinewood.nostyle.app
+
 ## How it’s used
 
 - **Kiosk device** (big screen): open the Kiosk page for the event and display standings/results.
