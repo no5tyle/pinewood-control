@@ -15,11 +15,28 @@ const app = express();
 const httpServer = createServer(app);
 
 const corsOrigin = (process.env.CORS_ORIGIN ?? "").trim();
-const corsOrigins = corsOrigin.length > 0 ? corsOrigin.split(",").map((s) => s.trim()).filter(Boolean) : [];
+const corsOrigins = corsOrigin.length > 0
+  ? corsOrigin
+      .split(",")
+      .map((s) => s.trim().replace(/\/+$/, ""))
+      .filter(Boolean)
+  : [];
 const allowAllOrigins = corsOrigins.length === 0;
+const allowedOriginSet = new Set(corsOrigins);
 
 const io = new Server(httpServer, {
-  cors: allowAllOrigins ? { origin: "*" } : { origin: corsOrigins, credentials: true },
+  cors: allowAllOrigins
+    ? { origin: "*" }
+    : {
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          const normalized = origin.replace(/\/+$/, "");
+          return callback(null, allowedOriginSet.has(normalized));
+        },
+        credentials: true,
+        methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allowedHeaders: ["Content-Type", "Authorization", "X-Kiosk-Token"],
+      },
 });
 
 // --- Auth Middleware ---
@@ -53,7 +70,22 @@ const requireAuth = (req: AuthRequest, res: Response, next: NextFunction) => {
   next();
 };
 
-app.use(cors(allowAllOrigins ? undefined : { origin: corsOrigins, credentials: true }));
+app.use(
+  cors(
+    allowAllOrigins
+      ? undefined
+      : {
+          origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            const normalized = origin.replace(/\/+$/, "");
+            return callback(null, allowedOriginSet.has(normalized));
+          },
+          credentials: true,
+          methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+          allowedHeaders: ["Content-Type", "Authorization", "X-Kiosk-Token"],
+        }
+  )
+);
 app.use(express.json());
 app.use(authenticate as express.RequestHandler);
 
