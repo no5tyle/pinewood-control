@@ -409,6 +409,7 @@ function serializeEvent(event: any) {
     eliminatedAt: s.eliminatedAt ? s.eliminatedAt.getTime() : null,
     eliminatedHeatId: s.eliminatedHeatId ?? null,
     droppedAt: s.droppedAt ? s.droppedAt.getTime() : null,
+    sourcePatrolRacerId: s.sourcePatrolRacerId ?? null,
   }));
   
   const active = scouts.filter((s: any) => !s.eliminated);
@@ -1242,6 +1243,27 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
     const racers = patrols.flatMap((p) => p.racers);
     if (racers.length === 0) return res.status(400).json({ message: "No racers to import" });
 
+    const racersById = new Map(racers.map((r) => [r.id, r]));
+    const already = await prisma.scout.findMany({
+      where: { eventId, sourcePatrolRacerId: { in: [...racersById.keys()] } },
+      select: { sourcePatrolRacerId: true },
+    });
+    if (already.length > 0) {
+      const alreadyIds = new Set(already.map((s) => s.sourcePatrolRacerId).filter((id): id is string => typeof id === "string"));
+      const alreadyPatrolIds = new Set(
+        patrols
+          .filter((p) => p.racers.some((r) => alreadyIds.has(r.id)))
+          .map((p) => p.id)
+      );
+      const alreadyNames = patrols.filter((p) => alreadyPatrolIds.has(p.id)).map((p) => p.name);
+      return res.status(400).json({
+        message:
+          alreadyNames.length > 0
+            ? `Patrol already added to this event: ${alreadyNames.join(", ")}`
+            : "One or more patrol racers have already been added to this event",
+      });
+    }
+
     const existing = await prisma.scout.findMany({
       where: { eventId },
       select: { carNumber: true },
@@ -1266,6 +1288,7 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
             eliminated: false,
             eliminatedAt: null,
             eventId,
+            sourcePatrolRacerId: r.id,
           },
         })
       )

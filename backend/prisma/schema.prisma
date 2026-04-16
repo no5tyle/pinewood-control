@@ -62,6 +62,7 @@ model Scout {
   eliminatedHeatId String?
   dropped     Boolean  @default(false)
   droppedAt   DateTime?
+  sourcePatrolRacerId String?
   laneHistory String   @default("[]") // JSON array of lane numbers
   
   eventId     String
@@ -72,6 +73,7 @@ model Scout {
   popularVoteWins Event[] @relation("PopularVoteWinner")
   votesReceived PopularVote[]
   logs        EventLog[]
+  sourcePatrolRacer RacePatrolRacer? @relation(fields: [sourcePatrolRacerId], references: [id], onDelete: SetNull)
 }
 
 model Heat {
@@ -123,6 +125,8 @@ model RacePatrolRacer {
 
   patrolId  String
   patrol    RacePatrol @relation(fields: [patrolId], references: [id], onDelete: Cascade)
+
+  scouts    Scout[]
 }
 
 model KioskSession {

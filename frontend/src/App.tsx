@@ -25,6 +25,7 @@ type Scout = {
   eliminatedHeatId?: string | null;
   dropped?: boolean;
   droppedAt?: number | null;
+  sourcePatrolRacerId?: string | null;
   points: number;
   eliminated: boolean;
 };
@@ -1140,7 +1141,22 @@ function AddScoutsPage() {
       .finally(() => setPatrolLoading(false));
   }, [user]);
 
+  const alreadyImportedPatrolIds = useMemo(() => {
+    if (!event) return new Set<string>();
+    const importedRacerIds = new Set(
+      event.scouts
+        .map((s) => s.sourcePatrolRacerId)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    );
+    const patrolIds = new Set<string>();
+    patrols.forEach((p) => {
+      if (p.racers.some((r) => importedRacerIds.has(r.id))) patrolIds.add(p.id);
+    });
+    return patrolIds;
+  }, [event, patrols]);
+
   const togglePatrol = (patrolId: string) => {
+    if (alreadyImportedPatrolIds.has(patrolId)) return;
     setSelectedPatrolIds((prev) => (prev.includes(patrolId) ? prev.filter((id) => id !== patrolId) : [...prev, patrolId]));
   };
 
@@ -1212,11 +1228,13 @@ function AddScoutsPage() {
                     type="checkbox"
                     checked={selectedPatrolIds.includes(p.id)}
                     onChange={() => togglePatrol(p.id)}
+                    disabled={alreadyImportedPatrolIds.has(p.id)}
                     style={{ width: "1.1rem", height: "1.1rem" }}
                   />
                   <span style={{ flex: 1 }}>
                     {p.name} <span className="muted">({p.racers.length} racer{p.racers.length === 1 ? "" : "s"})</span>
                   </span>
+                  {alreadyImportedPatrolIds.has(p.id) ? <span className="muted">Added</span> : null}
                 </label>
               ))}
             </div>
@@ -1714,8 +1732,6 @@ function KioskPage() {
   const [lastActiveHeatId, setLastActiveHeatId] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<"idle" | "copying" | "copied">("idle");
   const shareTimerRef = useRef<number | null>(null);
-  const [pairingCopied, setPairingCopied] = useState<null | "code" | "url">(null);
-  const pairingCopyTimerRef = useRef<number | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const isNewEvent = eventId === "new" || (event?.name === "New Pinewood Derby Event" && !event?.setupComplete);
@@ -1724,7 +1740,6 @@ function KioskPage() {
   useEffect(() => {
     return () => {
       if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
-      if (pairingCopyTimerRef.current) window.clearTimeout(pairingCopyTimerRef.current);
     };
   }, []);
 
@@ -1763,22 +1778,6 @@ function KioskPage() {
     setShareStatus("copied");
     if (shareTimerRef.current) window.clearTimeout(shareTimerRef.current);
     shareTimerRef.current = window.setTimeout(() => setShareStatus("idle"), 1500);
-  };
-
-  const copyPairingCode = async () => {
-    if (!pairingCode) return;
-    await copyToClipboardWithFallback(pairingCode);
-    setPairingCopied("code");
-    if (pairingCopyTimerRef.current) window.clearTimeout(pairingCopyTimerRef.current);
-    pairingCopyTimerRef.current = window.setTimeout(() => setPairingCopied(null), 1500);
-  };
-
-  const copyPairingLink = async () => {
-    if (!qrUrl) return;
-    await copyToClipboardWithFallback(qrUrl);
-    setPairingCopied("url");
-    if (pairingCopyTimerRef.current) window.clearTimeout(pairingCopyTimerRef.current);
-    pairingCopyTimerRef.current = window.setTimeout(() => setPairingCopied(null), 1500);
   };
 
   const claimEvent = async () => {
@@ -2085,12 +2084,6 @@ function KioskPage() {
               {qrUrl ? <div className="overlay-note" style={{ wordBreak: "break-all" }}>{qrUrl}</div> : null}
               <p className="overlay-note">Scan QR and enter code to link device</p>
               <div className="overlay-actions">
-                <button type="button" className="secondary-btn" onClick={() => void copyPairingCode()} disabled={!pairingCode}>
-                  {pairingCopied === "code" ? "✓ Copied code" : "Copy code"}
-                </button>
-                <button type="button" className="secondary-btn" onClick={() => void copyPairingLink()} disabled={!qrUrl}>
-                  {pairingCopied === "url" ? "✓ Copied link" : "Copy link"}
-                </button>
                 <a href={`/pair/${qrToken}?code=${pairingCode}`} target="_blank" rel="noopener noreferrer" className="direct-link">
                   Open operator view on this device
                 </a>
