@@ -363,6 +363,20 @@ function shuffle<T>(items: T[]): T[] {
   return arr;
 }
 
+function nextAvailableCarNumbers(existing: Array<{ carNumber: string }>, count: number): string[] {
+  const used = new Set<number>();
+  existing.forEach((s) => {
+    const n = Number.parseInt(s.carNumber, 10);
+    if (Number.isFinite(n) && n > 0) used.add(n);
+  });
+
+  const out: string[] = [];
+  for (let n = 1; out.length < count; n += 1) {
+    if (!used.has(n)) out.push(String(n));
+  }
+  return out;
+}
+
 async function getEventWithDetails(eventId: string) {
   const event = await prisma.event.findUnique({
     where: { id: eventId },
@@ -1182,11 +1196,7 @@ app.post("/api/events/:eventId/scouts", async (req, res) => {
       where: { eventId: req.params.eventId },
       select: { carNumber: true },
     });
-    const maxCarNumber = existing.reduce((max, s) => {
-      const n = Number.parseInt(s.carNumber, 10);
-      return Number.isFinite(n) ? Math.max(max, n) : max;
-    }, 0);
-    const carNumber = String(maxCarNumber + 1);
+    const carNumber = nextAvailableCarNumbers(existing, 1)[0];
     const pointsPenalty = parsed.data.pointsPenalty ?? 0;
     const startsEliminated = pointsPenalty >= event.pointLimit;
     const scout = await prisma.scout.create({
@@ -1272,12 +1282,7 @@ app.post("/api/events/:eventId/scouts/import-patrols", requireAuth as express.Re
       where: { eventId },
       select: { carNumber: true },
     });
-    const maxCarNumber = existing.reduce((max, s) => {
-      const n = Number.parseInt(s.carNumber, 10);
-      return Number.isFinite(n) ? Math.max(max, n) : max;
-    }, 0);
-
-    const nextNumbers = shuffle(Array.from({ length: missingRacers.length }, (_, idx) => String(maxCarNumber + idx + 1)));
+    const nextNumbers = shuffle(nextAvailableCarNumbers(existing, missingRacers.length));
 
     await prisma.$transaction(
       missingRacers.map((r, idx) =>
