@@ -45,8 +45,8 @@ export type EventState = {
   popularVoteRevealCountdownSeconds?: number;
   popularVoteWinnerScoutId?: string | null;
   popularVoteWinner?: Scout | null;
-  createdAt: number;
-  lastUsedAt: number;
+  createdAt?: number;
+  lastUsedAt?: number;
   isGuest: boolean;
   scouts: Scout[];
   heats: Heat[];

@@ -15,8 +15,11 @@ import {
 } from "../shared/storage";
 import type { EventListResponse, EventState } from "../shared/types";
 
-function formatDateTimeMinutes(value: number): string {
-  return new Date(value).toLocaleString(undefined, {
+function formatDateTimeMinutes(value: number | null | undefined): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString(undefined, {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
