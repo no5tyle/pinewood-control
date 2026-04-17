@@ -1796,16 +1796,18 @@ function EventsPage() {
             <div className="event-list">
               {guestEvents.map((event) => (
                 <div key={event.id} className="event-item card">
-                  <button
-                    className="danger-btn corner-delete-btn icon-btn"
-                    onClick={() => deleteGuestEvent(event.id)}
-                    aria-label="Delete event"
-                    title="Delete event"
-                  >
-                    <TrashIcon />
-                  </button>
                   <div className="event-info">
-                    <h3>{event.name}</h3>
+                    <div className="event-title-row">
+                      <h3 style={{ margin: 0 }}>{event.name}</h3>
+                      <button
+                        className="danger-btn corner-delete-btn icon-btn"
+                        onClick={() => deleteGuestEvent(event.id)}
+                        aria-label="Delete event"
+                        title="Delete event"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                     <div className="event-meta">
                       <span className={`status-badge ${event.isComplete ? "finished" : event.setupComplete ? "in-progress" : "setup"}`}>
                         {event.isComplete ? "Finished" : event.setupComplete ? "In progress" : "Setup"}
@@ -1854,16 +1856,18 @@ function EventsPage() {
             <div className="event-list my-events-list">
               {events.map((event) => (
                 <div key={event.id} className="event-item card">
-                  <button
-                    className="danger-btn corner-delete-btn icon-btn"
-                    onClick={() => deleteEvent(event.id)}
-                    aria-label="Delete event"
-                    title="Delete event"
-                  >
-                    <TrashIcon />
-                  </button>
                   <div className="event-info">
-                    <h3>{event.name}</h3>
+                    <div className="event-title-row">
+                      <h3 style={{ margin: 0 }}>{event.name}</h3>
+                      <button
+                        className="danger-btn corner-delete-btn icon-btn"
+                        onClick={() => deleteEvent(event.id)}
+                        aria-label="Delete event"
+                        title="Delete event"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
                     <div className="event-meta">
                       <span className={`status-badge ${event.isComplete ? "finished" : event.setupComplete ? "in-progress" : "setup"}`}>
                         {event.isComplete ? "Finished" : event.setupComplete ? "In progress" : "Setup"}
