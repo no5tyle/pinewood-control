@@ -15,6 +15,16 @@ import {
 } from "../shared/storage";
 import type { EventListResponse, EventState } from "../shared/types";
 
+function formatDateTimeMinutes(value: number): string {
+  return new Date(value).toLocaleString(undefined, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export function EventsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -242,6 +252,8 @@ export function EventsPage() {
                       </span>
                       <span><strong>{event.scouts.length}</strong> Racers</span>
                       <span><strong>{event.lanes}</strong> Lanes</span>
+                      <span className="muted">Created: {formatDateTimeMinutes(event.createdAt)}</span>
+                      <span className="muted">Last used: {formatDateTimeMinutes(event.lastUsedAt)}</span>
                     </div>
                   </div>
                   <div className="inline-actions">
@@ -302,6 +314,8 @@ export function EventsPage() {
                       </span>
                       <span><strong>{event.scouts.length}</strong> Racers</span>
                       <span><strong>{event.lanes}</strong> Lanes</span>
+                      <span className="muted">Created: {formatDateTimeMinutes(event.createdAt)}</span>
+                      <span className="muted">Last used: {formatDateTimeMinutes(event.lastUsedAt)}</span>
                     </div>
                   </div>
                   <div className="inline-actions">
@@ -335,4 +349,3 @@ export function EventsPage() {
     </main>
   );
 }
-

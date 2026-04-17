@@ -80,6 +80,7 @@ export function serializeEvent(event: any) {
     popularVoteWinnerScoutId: event.popularVoteWinnerScoutId ?? null,
     popularVoteWinner,
     createdAt: event.createdAt.getTime(),
+    lastUsedAt: event.updatedAt.getTime(),
     completedAt: event.completedAt?.getTime() ?? null,
     scouts,
     heats: event.heats.map((h: any) => ({
@@ -94,6 +95,14 @@ export function serializeEvent(event: any) {
     championScoutId: finalWinner?.id ?? null,
     isComplete: Boolean(finalWinner),
   };
+}
+
+export async function touchEvent(prisma: PrismaClient, eventId: string) {
+  await prisma.event.update({
+    where: { id: eventId },
+    data: { updatedAt: new Date() },
+    select: { id: true },
+  });
 }
 
 export async function publishEvent(io: Server, prisma: PrismaClient, eventId: string) {

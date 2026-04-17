@@ -45,6 +45,8 @@ export type EventState = {
   popularVoteRevealCountdownSeconds?: number;
   popularVoteWinnerScoutId?: string | null;
   popularVoteWinner?: Scout | null;
+  createdAt: number;
+  lastUsedAt: number;
   isGuest: boolean;
   scouts: Scout[];
   heats: Heat[];
@@ -98,4 +100,3 @@ export type RacePatrolListResponse = {
 };
 
 export type ThemeName = "system" | "scouts-au-cubs" | "scouts-america";
-

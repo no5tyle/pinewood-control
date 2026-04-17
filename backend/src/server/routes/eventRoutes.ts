@@ -18,7 +18,7 @@ import { requireEventReadAccess, requireEventWriteAccess } from "../auth.js";
 import { kioskAccessTtlMs } from "../config.js";
 import { safeParseJSON, nextAvailableCarNumbers, shuffle } from "../helpers.js";
 import { chooseNextHeat } from "../matchmaking.js";
-import { publishEvent, serializeEvent, getEventWithDetails } from "../eventService.js";
+import { publishEvent, serializeEvent, getEventWithDetails, touchEvent } from "../eventService.js";
 import { addScoutSchema, createEventSchema, importPatrolsSchema, postResultSchema, popularVoteSchema, updateEventSchema } from "../schemas.js";
 import { createRateLimiter } from "../rateLimit.js";
 
@@ -87,6 +87,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
     const link = await (prisma as any).guestKioskLink.create({
       data: { token: nanoid(24), eventId, expiresAt },
     });
+    await touchEvent(prisma, eventId);
     return res.status(201).json({ token: link.token, expiresAt: link.expiresAt.getTime() });
   });
 
@@ -102,6 +103,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       where: { eventId, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await touchEvent(prisma, eventId);
     return res.status(204).send();
   });
 
@@ -220,6 +222,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         });
       }
 
+      await touchEvent(prisma, req.params.eventId);
       await publishEvent(io, prisma, req.params.eventId);
       return res.status(201).json(scout);
     } catch {
@@ -298,6 +301,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         )
       );
 
+      await touchEvent(prisma, eventId);
       await publishEvent(io, prisma, eventId);
       return res.status(201).json({ created: missingRacers.length, skipped: racers.length - missingRacers.length });
     } catch {
@@ -322,6 +326,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       if (!scout || scout.eventId !== eventId) return res.status(404).json({ message: "Racer not found" });
 
       await prisma.scout.delete({ where: { id: scoutId } });
+      await touchEvent(prisma, eventId);
       await publishEvent(io, prisma, eventId);
       return res.status(204).send();
     } catch {
@@ -375,6 +380,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         await prisma.event.update({ where: { id: eventId }, data: { completedAt: new Date() } });
       }
 
+      await touchEvent(prisma, eventId);
       await publishEvent(io, prisma, eventId);
       return res.status(200).json({ message: "Racer dropped" });
     } catch {
@@ -394,6 +400,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       const heat = await chooseNextHeat(prisma, req.params.eventId);
       if (!heat) return res.status(400).json({ message: "Cannot generate a valid heat with fewer than 2 active racers" });
 
+      await touchEvent(prisma, req.params.eventId);
       await publishEvent(io, prisma, req.params.eventId);
       return res.status(201).json({
         ...heat,
@@ -478,6 +485,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         });
       }
 
+      await touchEvent(prisma, req.params.eventId);
       await publishEvent(io, prisma, req.params.eventId);
       return res.status(200).json({ message: "Result saved" });
     } catch {
@@ -560,6 +568,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         },
       });
 
+      await touchEvent(prisma, req.params.eventId);
       return res.status(201).json({ id: vote.id, createdAt: vote.createdAt.getTime() });
     } catch {
       return res.status(404).json({ message: "Event not found" });
