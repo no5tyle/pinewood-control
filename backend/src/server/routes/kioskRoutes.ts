@@ -24,6 +24,7 @@ export function registerKioskRoutes(options: { app: Express; prisma: PrismaClien
   const kioskSessionCreateLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-create" });
   const kioskSessionLookupLimiter = createRateLimiter({ windowMs: 60_000, max: 30, keyPrefix: "kiosk-session-lookup" });
   const kioskSessionBindLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-bind" });
+  const kioskSessionRefreshLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-refresh" });
   const kioskSessionCreateEventLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 20, keyPrefix: "kiosk-session-create-event" });
   const kioskPairingRequestLimiter = createRateLimiter({
     windowMs: 60_000,
@@ -74,6 +75,35 @@ export function registerKioskRoutes(options: { app: Express; prisma: PrismaClien
       eventId: session.eventId ?? null,
       expiresAt: session.expiresAt.getTime(),
       isBound: Boolean(session.eventId),
+    });
+  });
+
+  app.post("/api/kiosk/sessions/refresh", kioskSessionRefreshLimiter, async (req, res) => {
+    const token = req.header("x-kiosk-token");
+    if (!token) return res.status(400).json({ message: "Missing kiosk token" });
+
+    const session = await prisma.kioskSession.findUnique({ where: { token } });
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    if (Date.now() > session.expiresAt.getTime()) {
+      await prisma.kioskSession.delete({ where: { token } });
+      return res.status(410).json({ message: "Session expired" });
+    }
+
+    const nextExpiresAt = new Date(Date.now() + kioskAccessTtlMs);
+    const updated = await prisma.kioskSession.update({
+      where: { token },
+      data: {
+        expiresAt: nextExpiresAt,
+        accessExpiresAt: session.eventId ? nextExpiresAt : session.accessExpiresAt,
+      } as any,
+    });
+
+    return res.json({
+      token: updated.token,
+      eventId: updated.eventId ?? null,
+      expiresAt: updated.expiresAt.getTime(),
+      accessExpiresAt: updated.accessExpiresAt ? updated.accessExpiresAt.getTime() : null,
+      isBound: Boolean(updated.eventId),
     });
   });
 
