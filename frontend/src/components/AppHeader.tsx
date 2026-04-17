@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext";
+import { BackendStatusBanner } from "./BackendStatusBanner";
 import { donateOpenEventName, quickStartOpenEventName } from "../shared/events";
 
 function LinkIcon() {
@@ -64,53 +65,55 @@ function PatrolIcon() {
 export function AppHeader({ onRelink }: { onRelink?: () => void }) {
   const { user, logout } = useAuth();
   return (
-    <header className="app-header">
-      <Link to="/" className="app-brand">Pinewood Control</Link>
-      <div className="app-header-actions">
-        {onRelink ? (
-          <button className="profile-btn relink-btn" onClick={onRelink} aria-label="Re-pair device">
-            <span className="profile-icon" aria-hidden="true"><LinkIcon /></span>
-            <span>Re-pair</span>
-          </button>
-        ) : null}
-        <Link to="/events" className="profile-btn" aria-label="View events">
-          <span className="profile-icon" aria-hidden="true"><TrophyIcon /></span>
-          <span>Events</span>
-        </Link>
-        {user ? (
-          <Link to="/patrols" className="profile-btn" aria-label="Race patrols">
-            <span className="profile-icon" aria-hidden="true"><PatrolIcon /></span>
-            <span>Patrols</span>
+    <div className="app-header-wrap">
+      <header className="app-header">
+        <Link to="/" className="app-brand">Pinewood Control</Link>
+        <div className="app-header-actions">
+          {onRelink ? (
+            <button className="profile-btn relink-btn" onClick={onRelink} aria-label="Re-pair device">
+              <span className="profile-icon" aria-hidden="true"><LinkIcon /></span>
+              <span>Re-pair</span>
+            </button>
+          ) : null}
+          <Link to="/events" className="profile-btn" aria-label="View events">
+            <span className="profile-icon" aria-hidden="true"><TrophyIcon /></span>
+            <span>Events</span>
           </Link>
-        ) : null}
-        <button
-          type="button"
-          className="profile-btn"
-          aria-label="Help"
-          onClick={() => window.dispatchEvent(new Event(quickStartOpenEventName))}
-        >
-          <span className="profile-icon" aria-hidden="true"><HelpIcon /></span>
-          <span>Help</span>
-        </button>
-        <button
-          type="button"
-          className="profile-btn"
-          aria-label="Donate"
-          onClick={() => window.dispatchEvent(new Event(donateOpenEventName))}
-        >
-          <span className="profile-icon" aria-hidden="true"><HeartIcon /></span>
-          <span>Donate</span>
-        </button>
-        {user ? (
-          <div className="user-nav">
-            <span className="user-name">{user.name || user.email}</span>
-            <button className="profile-btn" onClick={logout}>Logout</button>
-          </div>
-        ) : (
-          <Link to="/login" className="profile-btn">Login</Link>
-        )}
-      </div>
-    </header>
+          {user ? (
+            <Link to="/patrols" className="profile-btn" aria-label="Race patrols">
+              <span className="profile-icon" aria-hidden="true"><PatrolIcon /></span>
+              <span>Patrols</span>
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            className="profile-btn"
+            aria-label="Help"
+            onClick={() => window.dispatchEvent(new Event(quickStartOpenEventName))}
+          >
+            <span className="profile-icon" aria-hidden="true"><HelpIcon /></span>
+            <span>Help</span>
+          </button>
+          <button
+            type="button"
+            className="profile-btn"
+            aria-label="Donate"
+            onClick={() => window.dispatchEvent(new Event(donateOpenEventName))}
+          >
+            <span className="profile-icon" aria-hidden="true"><HeartIcon /></span>
+            <span>Donate</span>
+          </button>
+          {user ? (
+            <div className="user-nav">
+              <span className="user-name">{user.name || user.email}</span>
+              <button className="profile-btn" onClick={logout}>Logout</button>
+            </div>
+          ) : (
+            <Link to="/login" className="profile-btn">Login</Link>
+          )}
+        </div>
+      </header>
+      <BackendStatusBanner />
+    </div>
   );
 }
-

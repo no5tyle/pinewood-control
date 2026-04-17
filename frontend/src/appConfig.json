@@ -1,3 +1,5 @@
 {
-  "qrPrefix": "http://192.168.0.32:5173"
+  "qrPrefix": "http://192.168.0.32:5173",
+  "supportLabel": "Contact Plover",
+  "supportUrl": "mailto:256412@sa.scouts.com.au"
 }

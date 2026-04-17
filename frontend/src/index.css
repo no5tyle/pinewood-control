@@ -241,6 +241,26 @@ input[type="checkbox"] {
   flex-wrap: nowrap;
 }
 
+.app-header-wrap {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.backend-status-banner {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #7f1d1d;
+  border-radius: 0.25rem;
+  padding: 0.4rem 0.55rem;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+.backend-status-banner a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .app-brand {
   text-decoration: none;
   color: var(--text);
@@ -1374,7 +1394,7 @@ label {
   width: 2.25rem;
   height: 2.25rem;
   padding: 0;
-  border-radius: 999px;
+  border-radius: 0.4rem;
   display: grid;
   place-items: center;
   line-height: 1;
