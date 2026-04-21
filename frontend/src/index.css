@@ -137,6 +137,19 @@ input {
   gap: 0.5rem;
 }
 
+.scout-pick-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+}
+
+.scout-pick-lane {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--muted);
+}
+
 .scout-pick-number {
   font-family: monospace;
   font-weight: 800;

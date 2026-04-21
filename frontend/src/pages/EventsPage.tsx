@@ -28,6 +28,26 @@ function formatDateTimeMinutes(value: number | null | undefined): string {
   });
 }
 
+function getComputedLastUsedAt(event: EventState): number {
+  const timestamps: number[] = [];
+  if (typeof event.createdAt === "number") timestamps.push(event.createdAt);
+  if (typeof event.completedAt === "number") timestamps.push(event.completedAt);
+  for (const heat of event.heats ?? []) {
+    if (typeof heat?.createdAt === "number") timestamps.push(heat.createdAt);
+  }
+  for (const scout of event.scouts ?? []) {
+    if (typeof scout?.eliminatedAt === "number") timestamps.push(scout.eliminatedAt);
+    if (typeof scout?.droppedAt === "number") timestamps.push(scout.droppedAt);
+  }
+  const best = Math.max(0, ...timestamps.filter((t) => Number.isFinite(t)));
+  return best > 0 ? best : 0;
+}
+
+function getBestLastUsedAt(event: EventState): number {
+  const payloadValue = typeof event.lastUsedAt === "number" && Number.isFinite(event.lastUsedAt) ? event.lastUsedAt : 0;
+  return Math.max(payloadValue, getComputedLastUsedAt(event));
+}
+
 export function EventsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -256,7 +276,7 @@ export function EventsPage() {
                       <span><strong>{event.scouts.length}</strong> Racers</span>
                       <span><strong>{event.lanes}</strong> Lanes</span>
                       <span className="muted">Created: {formatDateTimeMinutes(event.createdAt)}</span>
-                      <span className="muted">Last used: {formatDateTimeMinutes(event.lastUsedAt)}</span>
+                      <span className="muted">Last used: {formatDateTimeMinutes(getBestLastUsedAt(event))}</span>
                     </div>
                   </div>
                   <div className="inline-actions">
@@ -318,7 +338,7 @@ export function EventsPage() {
                       <span><strong>{event.scouts.length}</strong> Racers</span>
                       <span><strong>{event.lanes}</strong> Lanes</span>
                       <span className="muted">Created: {formatDateTimeMinutes(event.createdAt)}</span>
-                      <span className="muted">Last used: {formatDateTimeMinutes(event.lastUsedAt)}</span>
+                      <span className="muted">Last used: {formatDateTimeMinutes(getBestLastUsedAt(event))}</span>
                     </div>
                   </div>
                   <div className="inline-actions">

@@ -96,7 +96,9 @@ export function RaceControlPage() {
   const remainingFinishers = useMemo(() => {
     if (!currentHeat) return [];
     const picked = new Set(finishOrder);
-    return currentHeat.laneAssignments.filter((id) => !picked.has(id));
+    return currentHeat.laneAssignments
+      .map((scoutId, laneIndex) => ({ scoutId, laneIndex }))
+      .filter((entry) => !picked.has(entry.scoutId));
   }, [currentHeat, finishOrder]);
 
   const popularVoteCandidates = useMemo(() => {
@@ -288,12 +290,17 @@ export function RaceControlPage() {
               </div>
             ) : null}
             <div className="stack">
-              {remainingFinishers.map((scoutId) => (
+              {remainingFinishers.map(({ scoutId, laneIndex }) => (
                 <button key={scoutId} onClick={() => selectFinisher(scoutId)}>
-                  <span className="scout-pick">
-                    <span className="scout-pick-number">#{scoutById.get(scoutId)?.carNumber}</span>
-                    <span className="scout-pick-name">{scoutById.get(scoutId)?.name}</span>
-                    {scoutById.get(scoutId)?.groupName ? <span className="scout-pick-group">({scoutById.get(scoutId)?.groupName})</span> : null}
+                  <span className="scout-pick-card">
+                    <span className="scout-pick-lane">Lane {laneIndex + 1}</span>
+                    <span className="scout-pick">
+                      <span className="scout-pick-number">#{scoutById.get(scoutId)?.carNumber}</span>
+                      <span className="scout-pick-name">{scoutById.get(scoutId)?.name}</span>
+                      {scoutById.get(scoutId)?.groupName ? (
+                        <span className="scout-pick-group">({scoutById.get(scoutId)?.groupName})</span>
+                      ) : null}
+                    </span>
                   </span>
                 </button>
               ))}
@@ -429,4 +436,3 @@ export function RaceControlPage() {
     </main>
   );
 }
-

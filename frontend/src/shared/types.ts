@@ -16,6 +16,9 @@ export type Scout = {
 export type Heat = {
   id: string;
   laneAssignments: string[];
+  finishOrder?: string[];
+  loserScoutIds?: string[];
+  createdAt?: number;
   winnerScoutId?: string;
 };
 
@@ -47,6 +50,7 @@ export type EventState = {
   popularVoteWinner?: Scout | null;
   createdAt?: number;
   lastUsedAt?: number;
+  completedAt?: number | null;
   isGuest: boolean;
   scouts: Scout[];
   heats: Heat[];
