@@ -232,7 +232,6 @@ export function RaceControlPage() {
       setLastVotedScoutId(favoriteScoutId);
       if (voteFeedbackTimerRef.current) window.clearTimeout(voteFeedbackTimerRef.current);
       voteFeedbackTimerRef.current = window.setTimeout(() => setLastVotedScoutId(null), 900);
-      await refreshPopularVote();
     } catch (e) {
       setPopularError((e as Error).message);
     } finally {
