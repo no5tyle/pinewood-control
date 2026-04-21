@@ -416,14 +416,56 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       if (active.length <= 1) return res.status(400).json({ message: "Tournament is already complete" });
 
       const heat = await chooseNextHeat(prisma, req.params.eventId);
-      if (!heat) return res.status(400).json({ message: "Cannot generate a valid heat with fewer than 2 active racers" });
+      const createdHeat =
+        heat ??
+        (await (async () => {
+          const laneMax = Math.min(Math.max(event.lanes, 2), active.length);
+          const sorted = [...active].sort((a, b) => {
+            const aRuns = Array.isArray(a.laneHistory) ? a.laneHistory.length : 0;
+            const bRuns = Array.isArray(b.laneHistory) ? b.laneHistory.length : 0;
+            if (aRuns !== bRuns) return aRuns - bRuns;
+            if (a.points !== b.points) return a.points - b.points;
+            const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+            const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+            if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+            return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+          });
+          const picked = sorted.slice(0, laneMax);
+          if (picked.length < 2) return null;
+
+          const laneAssignments = picked.map((s) => String(s.id));
+          const heatId = nanoid(8);
+
+          await prisma.$transaction([
+            ...picked.map((s, idx) =>
+              prisma.scout.update({
+                where: { id: s.id },
+                data: { laneHistory: JSON.stringify([...(Array.isArray(s.laneHistory) ? s.laneHistory : []), idx + 1]) },
+              })
+            ),
+            prisma.heat.create({
+              data: {
+                id: heatId,
+                laneAssignments: JSON.stringify(laneAssignments),
+                finishOrder: "[]",
+                eventId: req.params.eventId,
+              },
+            }),
+          ]);
+
+          return prisma.heat.findUnique({ where: { id: heatId } });
+        })());
+
+      if (!createdHeat) {
+        return res.status(400).json({ message: "Cannot generate a valid heat with fewer than 2 active racers" });
+      }
 
       await touchEvent(prisma, req.params.eventId);
       await publishEvent(io, prisma, req.params.eventId);
       return res.status(201).json({
-        ...heat,
-        laneAssignments: safeParseJSON<string[]>(heat.laneAssignments, []),
-        createdAt: heat.createdAt.getTime(),
+        ...createdHeat,
+        laneAssignments: safeParseJSON<string[]>(createdHeat.laneAssignments, []),
+        createdAt: createdHeat.createdAt.getTime(),
       });
     } catch {
       return res.status(404).json({ message: "Event not found" });
