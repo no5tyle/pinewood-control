@@ -202,9 +202,10 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         const totalRuns = existing.reduce((sum, s) => sum + safeParseJSON<number[]>(s.laneHistory, []).length, 0);
         return Math.max(0, Math.round(totalRuns / existing.length));
       })();
+      const lanesSafe = typeof event.lanes === "number" && Number.isFinite(event.lanes) ? event.lanes : 2;
       const initialLaneHistory =
         isLateEntrant && avgRuns > 0
-          ? Array.from({ length: avgRuns }, (_, i) => (i % Math.max(2, event.lanes)) + 1)
+          ? Array.from({ length: avgRuns }, (_, i) => (i % Math.max(2, lanesSafe)) + 1)
           : [];
       const pointsPenalty = parsed.data.pointsPenalty ?? 0;
       const startsEliminated = pointsPenalty >= event.pointLimit;
@@ -419,7 +420,8 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       const createdHeat =
         heat ??
         (await (async () => {
-          const laneMax = Math.min(Math.max(event.lanes, 2), active.length);
+          const lanesSafe = typeof event.lanes === "number" && Number.isFinite(event.lanes) ? event.lanes : 2;
+          const laneMax = Math.min(Math.max(lanesSafe, 2), active.length);
           const sorted = [...active].sort((a, b) => {
             const aRuns = Array.isArray(a.laneHistory) ? a.laneHistory.length : 0;
             const bRuns = Array.isArray(b.laneHistory) ? b.laneHistory.length : 0;
