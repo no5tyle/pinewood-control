@@ -27,6 +27,59 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
 
   const guestKioskRedeemLimiter = createRateLimiter({ windowMs: 60 * 60_000, max: 30, keyPrefix: "guest-kiosk-redeem" });
 
+  // heatCountOffset is used for late entrants: it adjusts the effective “heats run” count without
+  // polluting laneHistory (which is used to balance lane fairness).
+  const getHeatsRun = (scout: any): number => {
+    const historyLen = safeParseJSON<number[]>(scout.laneHistory, []).length;
+    const offset = typeof scout.heatCountOffset === "number" && Number.isFinite(scout.heatCountOffset) ? scout.heatCountOffset : 0;
+    return historyLen + Math.max(0, Math.floor(offset));
+  };
+
+  const compareScoutsForHeatSelection = (a: any, b: any): number => {
+    const aRuns = getHeatsRun(a);
+    const bRuns = getHeatsRun(b);
+    if (aRuns !== bRuns) return aRuns - bRuns;
+    if (a.points !== b.points) return a.points - b.points;
+    const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
+    const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
+    if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+  };
+
+  const getUnfinishedHeatId = (event: any): string | null => {
+    const unfinished = event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0);
+    return unfinished?.id ?? null;
+  };
+
+  const createFallbackHeat = async (eventId: string, eventLanes: unknown, active: any[]) => {
+    const lanesSafe = typeof eventLanes === "number" && Number.isFinite(eventLanes) ? eventLanes : 2;
+    const laneMax = Math.min(Math.max(lanesSafe, 2), active.length);
+    const picked = [...active].sort(compareScoutsForHeatSelection).slice(0, laneMax);
+    if (picked.length < 2) return null;
+
+    const laneAssignments = picked.map((s) => String(s.id));
+    const heatId = nanoid(8);
+
+    const results = await prisma.$transaction([
+      ...picked.map((s, idx) =>
+        prisma.scout.update({
+          where: { id: s.id },
+          data: { laneHistory: JSON.stringify([...safeParseJSON<number[]>(s.laneHistory, []), idx + 1]) },
+        })
+      ),
+      prisma.heat.create({
+        data: {
+          id: heatId,
+          laneAssignments: JSON.stringify(laneAssignments),
+          finishOrder: "[]",
+          eventId,
+        },
+      }),
+    ]);
+
+    return results[results.length - 1] ?? null;
+  };
+
   app.post("/api/events", async (req: any, res) => {
     const parsed = createEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(parsed.error.flatten());
@@ -200,11 +253,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         if (!isLateEntrant) return 0;
         const eligible = existing.filter((s: any) => !s.eliminated);
         if (eligible.length === 0) return 0;
-        const totalRuns = eligible.reduce((sum: number, s: any) => {
-          const historyLen = safeParseJSON<number[]>(s.laneHistory, []).length;
-          const offset = typeof s.heatCountOffset === "number" ? s.heatCountOffset : 0;
-          return sum + historyLen + Math.max(0, Math.floor(offset));
-        }, 0);
+        const totalRuns = eligible.reduce((sum: number, s: any) => sum + getHeatsRun(s), 0);
         return Math.max(0, Math.round(totalRuns / eligible.length));
       })();
       const pointsPenalty = parsed.data.pointsPenalty ?? 0;
@@ -412,77 +461,17 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       const access = await requireEventWriteAccess(prisma, req, res, req.params.eventId);
       if (!access) return;
       const event = await getEventWithDetails(prisma, req.params.eventId);
-      const unfinished = event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0);
-      if (unfinished) return res.status(400).json({ message: "Finish the current heat before generating the next heat" });
+      const unfinishedHeatId = getUnfinishedHeatId(event);
+      if (unfinishedHeatId) return res.status(400).json({ message: "Finish the current heat before generating the next heat" });
       const scouts = event.scouts.map((s: any) => ({ ...s, laneHistory: safeParseJSON<number[]>(s.laneHistory, []) }));
       const active = scouts.filter((s: any) => !s.eliminated);
       if (active.length <= 1) return res.status(400).json({ message: "Tournament is already complete" });
 
       const heat = await chooseNextHeat(prisma, req.params.eventId);
-      const createdHeat =
-        heat ??
-        (await (async () => {
-          const lanesSafe = typeof event.lanes === "number" && Number.isFinite(event.lanes) ? event.lanes : 2;
-          const laneMax = Math.min(Math.max(lanesSafe, 2), active.length);
-          const sorted = [...active].sort((a, b) => {
-            const aRuns = (Array.isArray(a.laneHistory) ? a.laneHistory.length : 0) + (typeof a.heatCountOffset === "number" ? a.heatCountOffset : 0);
-            const bRuns = (Array.isArray(b.laneHistory) ? b.laneHistory.length : 0) + (typeof b.heatCountOffset === "number" ? b.heatCountOffset : 0);
-            if (aRuns !== bRuns) return aRuns - bRuns;
-            if (a.points !== b.points) return a.points - b.points;
-            const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
-            const bNum = Number.parseInt(String(b.carNumber ?? ""), 10);
-            if (Number.isFinite(aNum) && Number.isFinite(bNum) && aNum !== bNum) return aNum - bNum;
-            return String(a.name ?? "").localeCompare(String(b.name ?? ""));
-          });
-          const picked = sorted.slice(0, laneMax);
-          if (picked.length < 2) return null;
-
-          const laneAssignments = picked.map((s) => String(s.id));
-          const heatId = nanoid(8);
-
-          const results = await prisma.$transaction([
-            ...picked.map((s, idx) =>
-              prisma.scout.update({
-                where: { id: s.id },
-                data: { laneHistory: JSON.stringify([...(Array.isArray(s.laneHistory) ? s.laneHistory : []), idx + 1]) },
-              })
-            ),
-            prisma.heat.create({
-              data: {
-                id: heatId,
-                laneAssignments: JSON.stringify(laneAssignments),
-                finishOrder: "[]",
-                eventId: req.params.eventId,
-              },
-            }),
-          ]);
-
-          return results[results.length - 1] ?? null;
-        })());
+      const createdHeat = heat ?? (await createFallbackHeat(req.params.eventId, event.lanes, active));
 
       if (!createdHeat) {
-        return res.status(400).json({
-          message: "Cannot generate a valid heat with fewer than 2 active racers",
-          debug: {
-            eventId: event.id,
-            lanes: event.lanes,
-            setupComplete: event.setupComplete,
-            activeCount: active.length,
-            totalScouts: scouts.length,
-            eliminatedCount: scouts.length - active.length,
-            currentHeatId: event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0)?.id ?? null,
-            activeRuns: active
-              .map((s: any) => ({
-                id: s.id,
-                carNumber: s.carNumber,
-                eliminated: s.eliminated,
-                laneHistoryLen: Array.isArray(s.laneHistory) ? s.laneHistory.length : 0,
-                heatCountOffset: typeof s.heatCountOffset === "number" ? s.heatCountOffset : 0,
-              }))
-              .sort((a: any, b: any) => (a.laneHistoryLen + a.heatCountOffset) - (b.laneHistoryLen + b.heatCountOffset))
-              .slice(0, 25),
-          },
-        });
+        return res.status(400).json({ message: "Cannot generate a valid heat with fewer than 2 active racers" });
       }
 
       await touchEvent(prisma, req.params.eventId);

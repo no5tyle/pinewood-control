@@ -341,7 +341,7 @@ export function RaceControlPage() {
               <span><strong>#{s.carNumber}</strong> {s.name}{s.groupName ? <span className="muted"> ({s.groupName})</span> : null}</span>
               <span className="standings-right">
                 <span>{s.eliminated ? (s.dropped ? "Dropped" : "Out") : `${s.points} point${s.points === 1 ? "" : "s"}`}</span>
-                  {!s.eliminated && !event.isComplete ? (
+                {!s.eliminated && !event.isComplete ? (
                   <button type="button" className="secondary-btn standings-drop" onClick={() => void dropRacer(s.id)}>
                     Drop
                   </button>

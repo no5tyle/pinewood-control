@@ -53,6 +53,7 @@ export function KioskPage() {
   }, [showPairing]);
 
   useEffect(() => {
+    // Always keep nowMs “warm” so the popular vote countdown doesn't briefly show a stale number when reveal starts.
     const id = window.setInterval(() => setNowMs(Date.now()), 250);
     return () => window.clearInterval(id);
   }, []);

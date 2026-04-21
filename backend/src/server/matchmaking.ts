@@ -115,24 +115,30 @@ function buildCandidateGroups(active: any[], heatSize: number): any[][] {
   return groups;
 }
 
+// laneHistory is a JSON array storing the actual lane numbers a racer has run in so far.
+// heatCountOffset is used for late entrants to “catch up” to the field without faking lane assignments.
+//
+// laneBalanceScore estimates how unfair it would be to place this scout into `lane` next:
+// - Real lane numbers (1..laneCount) count normally.
+// - “Offset” runs are treated as neutral across lanes, so they don’t bias lane fairness.
 function laneBalanceScore(scout: any, lane: number, laneCount: number): number {
   const lanesSafe = Math.max(2, laneCount);
   const history = safeParseJSON<number[]>(scout.laneHistory, []);
   let laneHits = 0;
-  let penaltyRuns = 0;
+  let offsetRuns = 0;
 
   for (const value of history) {
     if (typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 1 && value <= lanesSafe) {
       if (value === lane) laneHits += 1;
     } else {
-      penaltyRuns += 1;
+      offsetRuns += 1;
     }
   }
 
   const offset = typeof scout.heatCountOffset === "number" && Number.isFinite(scout.heatCountOffset) ? scout.heatCountOffset : 0;
-  penaltyRuns += Math.max(0, Math.floor(offset));
+  offsetRuns += Math.max(0, Math.floor(offset));
 
-  return laneHits + penaltyRuns / lanesSafe;
+  return laneHits + offsetRuns / lanesSafe;
 }
 
 function heatsRunCount(scout: any): number {
