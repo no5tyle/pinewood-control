@@ -23,6 +23,7 @@ export function RaceControlPage() {
   const [latePenalty, setLatePenalty] = useState("");
   const [lateError, setLateError] = useState("");
   const [lateSaving, setLateSaving] = useState(false);
+  const [generatingHeat, setGeneratingHeat] = useState(false);
   const [popularVote, setPopularVote] = useState<{
     completedAt: number | null;
     totalVotes: number;
@@ -85,10 +86,13 @@ export function RaceControlPage() {
 
   const generateHeat = async () => {
     if (!event) return;
+    setGeneratingHeat(true);
     try {
       await api(`/events/${event.id}/next-heat`, { method: "POST" });
     } catch (err) {
       setSubmitError((err as Error).message);
+    } finally {
+      setGeneratingHeat(false);
     }
   };
 
@@ -130,9 +134,6 @@ export function RaceControlPage() {
         body: JSON.stringify({ finishOrder }),
       });
       setFinishOrder([]);
-      if (!event.isComplete) {
-        await generateHeat().catch(() => undefined);
-      }
     } catch (err) {
       setSubmitError((err as Error).message);
     }
@@ -204,6 +205,9 @@ export function RaceControlPage() {
       setLateWeight("");
       setLatePenalty("");
       setShowLateEntrant(false);
+      if (!currentHeat && event.heats.length > 0 && !event.isComplete) {
+        await generateHeat().catch(() => undefined);
+      }
     } catch (err) {
       setLateError((err as Error).message);
     } finally {
@@ -313,7 +317,11 @@ export function RaceControlPage() {
         ) : event.heats.length === 0 ? (
           <button onClick={() => void generateHeat()} disabled={event.isComplete}>Generate starting heat</button>
         ) : !event.isComplete ? (
-          <p className="muted">Generating next heat...</p>
+          <div className="inline-actions">
+            <button onClick={() => void generateHeat()} disabled={generatingHeat}>
+              {generatingHeat ? "Generating next heat..." : "Generate next heat"}
+            </button>
+          </div>
         ) : null}
       </section>
       <section className="card">
