@@ -186,7 +186,7 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
   const desiredHeatSize = Math.min(laneMax, chooseDesiredHeatSize(minBucket.length, laneMax));
 
   const pairCounts = await buildPairCounts(prisma, eventId);
-  const candidateGroups: any[][] = (() => {
+  let candidateGroups: any[][] = (() => {
     if (minBucket.length >= desiredHeatSize) {
       return sampleUniqueGroups(minBucket, desiredHeatSize, 140);
     }
@@ -201,6 +201,10 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
     const fillGroups = remainingSlots === 0 ? [[]] : sampleUniqueGroups(fillPool, remainingSlots, 140);
     return fillGroups.map((g) => [...fixed, ...g]);
   })();
+
+  if (candidateGroups.length === 0) {
+    candidateGroups = buildCandidateGroups(active, desiredHeatSize);
+  }
 
   let bestLaneAssignments: string[] | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
@@ -264,7 +268,28 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
     }
   }
 
-  if (!bestLaneAssignments || bestLaneAssignments.length < 2) return null;
+  if (!bestLaneAssignments || bestLaneAssignments.length < 2) {
+    const fallbackGroup = [...active].sort(compareScoutsForSelection).slice(0, laneMax);
+    if (fallbackGroup.length < 2) return null;
+
+    const lanePermutations = getPermutationCandidates(fallbackGroup);
+    let bestFallbackAssignment: any[] | null = null;
+    let bestFallbackLaneCost = Number.POSITIVE_INFINITY;
+
+    for (const perm of lanePermutations) {
+      const laneCost = perm.reduce((sum: number, scout: any, index: number) => {
+        const lane = index + 1;
+        return sum + laneBalanceScore(scout, lane);
+      }, 0);
+      if (laneCost < bestFallbackLaneCost) {
+        bestFallbackLaneCost = laneCost;
+        bestFallbackAssignment = perm;
+      }
+    }
+
+    bestLaneAssignments = (bestFallbackAssignment ?? fallbackGroup).map((s: any) => s.id);
+    if (bestLaneAssignments.length < 2) return null;
+  }
 
   const laneAssignments = bestLaneAssignments;
 
