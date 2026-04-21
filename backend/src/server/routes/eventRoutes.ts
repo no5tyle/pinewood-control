@@ -191,21 +191,21 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       if (!event) return res.status(404).json({ message: "Event not found" });
       const existing = await prisma.scout.findMany({
         where: { eventId: req.params.eventId },
-        select: { carNumber: true, laneHistory: true },
+        select: { carNumber: true, laneHistory: true, eliminated: true },
       });
       const carNumber = nextAvailableCarNumbers(existing, 1)[0];
       const heatCount = await prisma.heat.count({ where: { eventId: req.params.eventId } });
       const isLateEntrant = event.setupComplete || heatCount > 0;
       const avgRuns = (() => {
         if (!isLateEntrant) return 0;
-        if (existing.length === 0) return 0;
-        const totalRuns = existing.reduce((sum, s) => sum + safeParseJSON<number[]>(s.laneHistory, []).length, 0);
-        return Math.max(0, Math.round(totalRuns / existing.length));
+        const eligible = existing.filter((s) => !s.eliminated);
+        if (eligible.length === 0) return 0;
+        const totalRuns = eligible.reduce((sum, s) => sum + safeParseJSON<number[]>(s.laneHistory, []).length, 0);
+        return Math.max(0, Math.round(totalRuns / eligible.length));
       })();
-      const lanesSafe = typeof event.lanes === "number" && Number.isFinite(event.lanes) ? event.lanes : 2;
       const initialLaneHistory =
         isLateEntrant && avgRuns > 0
-          ? Array.from({ length: avgRuns }, (_, i) => (i % Math.max(2, lanesSafe)) + 1)
+          ? Array.from({ length: avgRuns }, () => 0)
           : [];
       const pointsPenalty = parsed.data.pointsPenalty ?? 0;
       const startsEliminated = pointsPenalty >= event.pointLimit;
