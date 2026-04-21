@@ -64,6 +64,7 @@ model Scout {
   droppedAt   DateTime?
   sourcePatrolRacerId String?
   laneHistory String   @default("[]") // JSON array of lane numbers
+  heatCountOffset Int @default(0)
   
   eventId     String
   event       Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)

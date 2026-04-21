@@ -189,27 +189,27 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         select: { id: true, pointLimit: true, setupComplete: true, lanes: true },
       });
       if (!event) return res.status(404).json({ message: "Event not found" });
-      const existing = await prisma.scout.findMany({
+      const existing = await (prisma as any).scout.findMany({
         where: { eventId: req.params.eventId },
-        select: { carNumber: true, laneHistory: true, eliminated: true },
+        select: { carNumber: true, laneHistory: true, eliminated: true, heatCountOffset: true },
       });
       const carNumber = nextAvailableCarNumbers(existing, 1)[0];
       const heatCount = await prisma.heat.count({ where: { eventId: req.params.eventId } });
       const isLateEntrant = event.setupComplete || heatCount > 0;
       const avgRuns = (() => {
         if (!isLateEntrant) return 0;
-        const eligible = existing.filter((s) => !s.eliminated);
+        const eligible = existing.filter((s: any) => !s.eliminated);
         if (eligible.length === 0) return 0;
-        const totalRuns = eligible.reduce((sum, s) => sum + safeParseJSON<number[]>(s.laneHistory, []).length, 0);
+        const totalRuns = eligible.reduce((sum: number, s: any) => {
+          const historyLen = safeParseJSON<number[]>(s.laneHistory, []).length;
+          const offset = typeof s.heatCountOffset === "number" ? s.heatCountOffset : 0;
+          return sum + historyLen + Math.max(0, Math.floor(offset));
+        }, 0);
         return Math.max(0, Math.round(totalRuns / eligible.length));
       })();
-      const initialLaneHistory =
-        isLateEntrant && avgRuns > 0
-          ? Array.from({ length: avgRuns }, () => 0)
-          : [];
       const pointsPenalty = parsed.data.pointsPenalty ?? 0;
       const startsEliminated = pointsPenalty >= event.pointLimit;
-      const scout = await prisma.scout.create({
+      const scout = await (prisma as any).scout.create({
         data: {
           id: nanoid(10),
           name: parsed.data.name,
@@ -219,7 +219,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
           points: pointsPenalty,
           eliminated: startsEliminated,
           eliminatedAt: startsEliminated ? new Date() : null,
-          laneHistory: JSON.stringify(initialLaneHistory),
+          heatCountOffset: isLateEntrant ? avgRuns : 0,
           eventId: req.params.eventId,
         },
       });
@@ -412,6 +412,8 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       const access = await requireEventWriteAccess(prisma, req, res, req.params.eventId);
       if (!access) return;
       const event = await getEventWithDetails(prisma, req.params.eventId);
+      const unfinished = event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0);
+      if (unfinished) return res.status(400).json({ message: "Finish the current heat before generating the next heat" });
       const scouts = event.scouts.map((s: any) => ({ ...s, laneHistory: safeParseJSON<number[]>(s.laneHistory, []) }));
       const active = scouts.filter((s: any) => !s.eliminated);
       if (active.length <= 1) return res.status(400).json({ message: "Tournament is already complete" });
@@ -423,8 +425,8 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
           const lanesSafe = typeof event.lanes === "number" && Number.isFinite(event.lanes) ? event.lanes : 2;
           const laneMax = Math.min(Math.max(lanesSafe, 2), active.length);
           const sorted = [...active].sort((a, b) => {
-            const aRuns = Array.isArray(a.laneHistory) ? a.laneHistory.length : 0;
-            const bRuns = Array.isArray(b.laneHistory) ? b.laneHistory.length : 0;
+            const aRuns = (Array.isArray(a.laneHistory) ? a.laneHistory.length : 0) + (typeof a.heatCountOffset === "number" ? a.heatCountOffset : 0);
+            const bRuns = (Array.isArray(b.laneHistory) ? b.laneHistory.length : 0) + (typeof b.heatCountOffset === "number" ? b.heatCountOffset : 0);
             if (aRuns !== bRuns) return aRuns - bRuns;
             if (a.points !== b.points) return a.points - b.points;
             const aNum = Number.parseInt(String(a.carNumber ?? ""), 10);
@@ -438,7 +440,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
           const laneAssignments = picked.map((s) => String(s.id));
           const heatId = nanoid(8);
 
-          await prisma.$transaction([
+          const results = await prisma.$transaction([
             ...picked.map((s, idx) =>
               prisma.scout.update({
                 where: { id: s.id },
@@ -455,7 +457,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
             }),
           ]);
 
-          return prisma.heat.findUnique({ where: { id: heatId } });
+          return results[results.length - 1] ?? null;
         })());
 
       if (!createdHeat) {

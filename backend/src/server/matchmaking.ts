@@ -115,13 +115,30 @@ function buildCandidateGroups(active: any[], heatSize: number): any[][] {
   return groups;
 }
 
-function laneBalanceScore(scout: any, lane: number): number {
+function laneBalanceScore(scout: any, lane: number, laneCount: number): number {
+  const lanesSafe = Math.max(2, laneCount);
   const history = safeParseJSON<number[]>(scout.laneHistory, []);
-  return history.filter((l) => l === lane).length;
+  let laneHits = 0;
+  let penaltyRuns = 0;
+
+  for (const value of history) {
+    if (typeof value === "number" && Number.isFinite(value) && Number.isInteger(value) && value >= 1 && value <= lanesSafe) {
+      if (value === lane) laneHits += 1;
+    } else {
+      penaltyRuns += 1;
+    }
+  }
+
+  const offset = typeof scout.heatCountOffset === "number" && Number.isFinite(scout.heatCountOffset) ? scout.heatCountOffset : 0;
+  penaltyRuns += Math.max(0, Math.floor(offset));
+
+  return laneHits + penaltyRuns / lanesSafe;
 }
 
 function heatsRunCount(scout: any): number {
-  return safeParseJSON<number[]>(scout.laneHistory, []).length;
+  const historyLen = safeParseJSON<number[]>(scout.laneHistory, []).length;
+  const offset = typeof scout.heatCountOffset === "number" && Number.isFinite(scout.heatCountOffset) ? scout.heatCountOffset : 0;
+  return historyLen + Math.max(0, Math.floor(offset));
 }
 
 function compareScoutsForSelection(a: any, b: any): number {
@@ -217,7 +234,7 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
     for (const perm of lanePermutations) {
       const laneCost = perm.reduce((sum: number, scout: any, index: number) => {
         const lane = index + 1;
-        return sum + laneBalanceScore(scout, lane);
+        return sum + laneBalanceScore(scout, lane, perm.length);
       }, 0);
 
       if (laneCost < bestGroupLaneCost) {
@@ -279,7 +296,7 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
     for (const perm of lanePermutations) {
       const laneCost = perm.reduce((sum: number, scout: any, index: number) => {
         const lane = index + 1;
-        return sum + laneBalanceScore(scout, lane);
+        return sum + laneBalanceScore(scout, lane, perm.length);
       }, 0);
       if (laneCost < bestFallbackLaneCost) {
         bestFallbackLaneCost = laneCost;
