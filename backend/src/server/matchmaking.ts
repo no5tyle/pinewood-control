@@ -136,7 +136,8 @@ function compareScoutsForSelection(a: any, b: any): number {
 }
 
 function sampleUniqueGroups(pool: any[], size: number, target: number): any[][] {
-  if (size < 2) return [];
+  if (size <= 0) return [];
+  if (size === 1) return pool.slice(0, Math.max(0, target)).map((s) => [s]);
   if (pool.length < size) return [];
   if (pool.length === size) return [pool];
 

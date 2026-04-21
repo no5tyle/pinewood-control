@@ -186,14 +186,26 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       if (!access) return;
       const event = await prisma.event.findUnique({
         where: { id: req.params.eventId },
-        select: { id: true, pointLimit: true, setupComplete: true },
+        select: { id: true, pointLimit: true, setupComplete: true, lanes: true },
       });
       if (!event) return res.status(404).json({ message: "Event not found" });
       const existing = await prisma.scout.findMany({
         where: { eventId: req.params.eventId },
-        select: { carNumber: true },
+        select: { carNumber: true, laneHistory: true },
       });
       const carNumber = nextAvailableCarNumbers(existing, 1)[0];
+      const heatCount = await prisma.heat.count({ where: { eventId: req.params.eventId } });
+      const isLateEntrant = event.setupComplete || heatCount > 0;
+      const avgRuns = (() => {
+        if (!isLateEntrant) return 0;
+        if (existing.length === 0) return 0;
+        const totalRuns = existing.reduce((sum, s) => sum + safeParseJSON<number[]>(s.laneHistory, []).length, 0);
+        return Math.max(0, Math.round(totalRuns / existing.length));
+      })();
+      const initialLaneHistory =
+        isLateEntrant && avgRuns > 0
+          ? Array.from({ length: avgRuns }, (_, i) => (i % Math.max(2, event.lanes)) + 1)
+          : [];
       const pointsPenalty = parsed.data.pointsPenalty ?? 0;
       const startsEliminated = pointsPenalty >= event.pointLimit;
       const scout = await prisma.scout.create({
@@ -206,12 +218,12 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
           points: pointsPenalty,
           eliminated: startsEliminated,
           eliminatedAt: startsEliminated ? new Date() : null,
+          laneHistory: JSON.stringify(initialLaneHistory),
           eventId: req.params.eventId,
         },
       });
 
-      const heatCount = await prisma.heat.count({ where: { eventId: req.params.eventId } });
-      if (event.setupComplete || heatCount > 0) {
+      if (isLateEntrant) {
         await prisma.eventLog.create({
           data: {
             eventId: req.params.eventId,
@@ -342,9 +354,15 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
       if (!access) return;
 
       const event = await getEventWithDetails(prisma, eventId);
+      if (event.completedAt) return res.status(400).json({ message: "Event is complete" });
       const scout = event.scouts.find((s: any) => s.id === scoutId);
       if (!scout) return res.status(404).json({ message: "Racer not found" });
       if (scout.eliminated) return res.status(400).json({ message: "Racer is already out" });
+
+      const activeBeforeDrop = event.scouts.filter((s: any) => !s.eliminated);
+      if (activeBeforeDrop.length <= 1) {
+        return res.status(400).json({ message: "Cannot drop the last remaining racer" });
+      }
 
       const currentHeat = event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0);
       if (currentHeat) {
@@ -552,7 +570,6 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         select: { id: true, completedAt: true, popularVoteRevealAt: true },
       });
       if (!event) return res.status(404).json({ message: "Event not found" });
-      if (!event.completedAt) return res.status(400).json({ message: "Event is not complete yet" });
       if (event.popularVoteRevealAt) return res.status(400).json({ message: "Popular vote has been revealed" });
 
       const favorite = await prisma.scout.findFirst({

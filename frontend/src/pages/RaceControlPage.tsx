@@ -70,9 +70,8 @@ export function RaceControlPage() {
   }, [event?.id]);
 
   useEffect(() => {
-    if (!event?.championScoutId) return;
     void refreshPopularVote();
-  }, [event?.championScoutId, refreshPopularVote]);
+  }, [refreshPopularVote]);
 
   const ordinal = (n: number) => {
     const mod100 = n % 100;
@@ -325,7 +324,7 @@ export function RaceControlPage() {
               <span><strong>#{s.carNumber}</strong> {s.name}{s.groupName ? <span className="muted"> ({s.groupName})</span> : null}</span>
               <span className="standings-right">
                 <span>{s.eliminated ? (s.dropped ? "Dropped" : "Out") : `${s.points} point${s.points === 1 ? "" : "s"}`}</span>
-                {!s.eliminated ? (
+                  {!s.eliminated && !event.isComplete ? (
                   <button type="button" className="secondary-btn standings-drop" onClick={() => void dropRacer(s.id)}>
                     Drop
                   </button>
@@ -342,76 +341,76 @@ export function RaceControlPage() {
           <Link to={`/results/${event.id}`} className="link-btn">View final results</Link>
         </section>
       ) : null}
-      {event.championScoutId ? (
-        <section className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
-            <h2 style={{ margin: 0 }}>Popular Vote</h2>
-            <div className="inline-actions">
-              <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>
-                Refresh
-              </button>
-              <button
-                className="secondary-btn"
-                onClick={() => void revealPopularVote()}
-                disabled={popularSubmitting || !popularVote || Boolean(popularVote.revealAt)}
-              >
-                Reveal popular vote
-              </button>
-            </div>
+      <section className="card">
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+          <h2 style={{ margin: 0 }}>Popular Vote</h2>
+          <div className="inline-actions">
+            <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>
+              Refresh
+            </button>
+            <button
+              className="secondary-btn"
+              onClick={() => void revealPopularVote()}
+              disabled={!event.isComplete || popularSubmitting || !popularVote || Boolean(popularVote.revealAt)}
+            >
+              Reveal popular vote
+            </button>
           </div>
-          {popularLoading ? <p className="muted">Loading votes…</p> : null}
-          {popularError ? <p className="error">{popularError}</p> : null}
-          {popularVote ? (
-            <>
-              {popularVote.revealAt ? (
-                <>
-                  <h3 style={{ margin: "0.5rem 0 0" }}>Winner</h3>
-                  {popularVote.winner ? (
-                    <p style={{ margin: 0 }}>
-                      <strong>#{popularVote.winner.carNumber}</strong> {popularVote.winner.name}
-                      {popularVote.winner.groupName ? <span className="muted"> ({popularVote.winner.groupName})</span> : null}
-                    </p>
-                  ) : (
-                    <p className="muted" style={{ margin: 0 }}>No votes recorded.</p>
-                  )}
-                  <p className="muted" style={{ margin: 0 }}>
-                    {popularVote.totalVotes} vote{popularVote.totalVotes === 1 ? "" : "s"} cast
+        </div>
+        {popularLoading ? <p className="muted">Loading votes…</p> : null}
+        {popularError ? <p className="error">{popularError}</p> : null}
+        {popularVote ? (
+          <>
+            {popularVote.revealAt ? (
+              <>
+                <h3 style={{ margin: "0.5rem 0 0" }}>Winner</h3>
+                {popularVote.winner ? (
+                  <p style={{ margin: 0 }}>
+                    <strong>#{popularVote.winner.carNumber}</strong> {popularVote.winner.name}
+                    {popularVote.winner.groupName ? <span className="muted"> ({popularVote.winner.groupName})</span> : null}
                   </p>
-                  <details style={{ marginTop: "0.75rem" }}>
-                    <summary>Show ranks</summary>
-                    <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
-                      {popularVote.ranks.map((r) => (
-                        <li key={r.scout.id}>
-                          <strong>#{r.scout.carNumber}</strong> {r.scout.name}
-                          {r.scout.groupName ? <span className="muted"> ({r.scout.groupName})</span> : null}
-                          <span className="muted"> — {r.votes} vote{r.votes === 1 ? "" : "s"}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </details>
-                </>
-              ) : (
-                <>
-                  <p className="muted">Tap a car to cast a vote. Cast as many votes as you like, then reveal.</p>
-                  <div className="stack">
-                    {popularVoteCandidates.map((s) => (
-                      <button key={s.id} onClick={() => void submitPopularVote(s.id)} disabled={popularSubmitting}>
-                        <span className="scout-pick">
-                          <span className="scout-pick-number">#{s.carNumber}</span>
-                          <span className="scout-pick-name">{s.name}</span>
-                          {s.groupName ? <span className="scout-pick-group">({s.groupName})</span> : null}
-                        </span>
-                      </button>
+                ) : (
+                  <p className="muted" style={{ margin: 0 }}>No votes recorded.</p>
+                )}
+                <p className="muted" style={{ margin: 0 }}>
+                  {popularVote.totalVotes} vote{popularVote.totalVotes === 1 ? "" : "s"} cast
+                </p>
+                <details style={{ marginTop: "0.75rem" }}>
+                  <summary>Show ranks</summary>
+                  <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+                    {popularVote.ranks.map((r) => (
+                      <li key={r.scout.id}>
+                        <strong>#{r.scout.carNumber}</strong> {r.scout.name}
+                        {r.scout.groupName ? <span className="muted"> ({r.scout.groupName})</span> : null}
+                        <span className="muted"> — {r.votes} vote{r.votes === 1 ? "" : "s"}</span>
+                      </li>
                     ))}
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <p className="muted">No vote data yet.</p>
-          )}
-        </section>
-      ) : null}
+                  </ol>
+                </details>
+              </>
+            ) : (
+              <>
+                <p className="muted">
+                  Tap a car to cast a vote. Cast as many votes as you like, then reveal after the event ends.
+                </p>
+                <div className="stack">
+                  {popularVoteCandidates.map((s) => (
+                    <button key={s.id} onClick={() => void submitPopularVote(s.id)} disabled={popularSubmitting}>
+                      <span className="scout-pick">
+                        <span className="scout-pick-number">#{s.carNumber}</span>
+                        <span className="scout-pick-name">{s.name}</span>
+                        {s.groupName ? <span className="scout-pick-group">({s.groupName})</span> : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <p className="muted">No vote data yet.</p>
+        )}
+      </section>
       {submitError ? <p className="error">{submitError}</p> : null}
       {showLateEntrant ? (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Add late entrant">
