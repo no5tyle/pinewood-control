@@ -29,6 +29,7 @@ import { startPeriodicCleanup } from "./server/cleanup.js";
 const prisma = new PrismaClient();
 const app = express();
 app.set("trust proxy", true);
+const startedAt = Date.now();
 
 const corsOptions = allowAllOrigins
   ? undefined
@@ -45,7 +46,7 @@ const corsOptions = allowAllOrigins
 app.use(cors(corsOptions));
 app.use(express.json());
 app.get("/api/health", (_req, res) => {
-  return res.json({ ok: true, time: Date.now() });
+  return res.json({ ok: true, time: Date.now(), startedAt });
 });
 app.use(createRateLimiter({ windowMs: 60_000, max: 300, keyPrefix: "api" }));
 app.use(authenticate(JWT_SECRET) as unknown as express.RequestHandler);

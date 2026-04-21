@@ -461,7 +461,28 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         })());
 
       if (!createdHeat) {
-        return res.status(400).json({ message: "Cannot generate a valid heat with fewer than 2 active racers" });
+        return res.status(400).json({
+          message: "Cannot generate a valid heat with fewer than 2 active racers",
+          debug: {
+            eventId: event.id,
+            lanes: event.lanes,
+            setupComplete: event.setupComplete,
+            activeCount: active.length,
+            totalScouts: scouts.length,
+            eliminatedCount: scouts.length - active.length,
+            currentHeatId: event.heats.find((h: any) => safeParseJSON<string[]>(h.finishOrder, []).length === 0)?.id ?? null,
+            activeRuns: active
+              .map((s: any) => ({
+                id: s.id,
+                carNumber: s.carNumber,
+                eliminated: s.eliminated,
+                laneHistoryLen: Array.isArray(s.laneHistory) ? s.laneHistory.length : 0,
+                heatCountOffset: typeof s.heatCountOffset === "number" ? s.heatCountOffset : 0,
+              }))
+              .sort((a: any, b: any) => (a.laneHistoryLen + a.heatCountOffset) - (b.laneHistoryLen + b.heatCountOffset))
+              .slice(0, 25),
+          },
+        });
       }
 
       await touchEvent(prisma, req.params.eventId);
