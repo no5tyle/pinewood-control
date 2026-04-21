@@ -76,7 +76,7 @@ export function serializeEvent(event: any) {
     theme: event.theme,
     weightUnit: event.weightUnit ?? "g",
     popularVoteRevealAt: event.popularVoteRevealAt?.getTime() ?? null,
-    popularVoteRevealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+    popularVoteRevealCountdownSeconds: 3,
     popularVoteWinnerScoutId: event.popularVoteWinnerScoutId ?? null,
     popularVoteWinner,
     createdAt: event.createdAt.getTime(),

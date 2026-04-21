@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { AuthRequiredPage } from "../components/AuthRequiredPage";
@@ -35,6 +35,8 @@ export function RaceControlPage() {
   const [popularLoading, setPopularLoading] = useState(false);
   const [popularError, setPopularError] = useState("");
   const [popularSubmitting, setPopularSubmitting] = useState(false);
+  const [lastVotedScoutId, setLastVotedScoutId] = useState<string | null>(null);
+  const voteFeedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setFinishOrder([]);
@@ -73,6 +75,12 @@ export function RaceControlPage() {
   useEffect(() => {
     void refreshPopularVote();
   }, [refreshPopularVote]);
+
+  useEffect(() => {
+    return () => {
+      if (voteFeedbackTimerRef.current) window.clearTimeout(voteFeedbackTimerRef.current);
+    };
+  }, []);
 
   const ordinal = (n: number) => {
     const mod100 = n % 100;
@@ -205,9 +213,6 @@ export function RaceControlPage() {
       setLateWeight("");
       setLatePenalty("");
       setShowLateEntrant(false);
-      if (!currentHeat && event.heats.length > 0 && !event.isComplete) {
-        await generateHeat().catch(() => undefined);
-      }
     } catch (err) {
       setLateError((err as Error).message);
     } finally {
@@ -224,6 +229,9 @@ export function RaceControlPage() {
         method: "POST",
         body: JSON.stringify({ favoriteScoutId }),
       });
+      setLastVotedScoutId(favoriteScoutId);
+      if (voteFeedbackTimerRef.current) window.clearTimeout(voteFeedbackTimerRef.current);
+      voteFeedbackTimerRef.current = window.setTimeout(() => setLastVotedScoutId(null), 900);
       await refreshPopularVote();
     } catch (e) {
       setPopularError((e as Error).message);
@@ -278,7 +286,9 @@ export function RaceControlPage() {
         <h2>Current Heat</h2>
         {currentHeat ? (
           <>
-            <p className="muted">Select {ordinal(finishOrder.length + 1)} place</p>
+            {remainingFinishers.length > 0 ? (
+              <p className="muted">Select {ordinal(finishOrder.length + 1)} place</p>
+            ) : null}
             {finishOrder.length > 0 ? (
               <div className="card" style={{ padding: "1rem", background: "var(--bg-soft)" }}>
                 <h3 style={{ margin: 0 }}>Selected Order</h3>
@@ -294,7 +304,7 @@ export function RaceControlPage() {
             ) : null}
             <div className="stack">
               {remainingFinishers.map(({ scoutId, laneIndex }) => (
-                <button key={scoutId} onClick={() => selectFinisher(scoutId)}>
+                <button key={scoutId} className="heat-finisher-btn" onClick={() => selectFinisher(scoutId)}>
                   <span className="scout-pick-card">
                     <span className="scout-pick-lane">Lane {laneIndex + 1}</span>
                     <span className="scout-pick">
@@ -403,8 +413,14 @@ export function RaceControlPage() {
                 </p>
                 <div className="stack">
                   {popularVoteCandidates.map((s) => (
-                    <button key={s.id} onClick={() => void submitPopularVote(s.id)} disabled={popularSubmitting}>
+                    <button
+                      key={s.id}
+                      className={`popular-vote-btn ${lastVotedScoutId === s.id ? "voted" : ""}`}
+                      onClick={() => void submitPopularVote(s.id)}
+                      disabled={popularSubmitting}
+                    >
                       <span className="scout-pick">
+                        {lastVotedScoutId === s.id ? <span className="vote-check" aria-hidden="true">✓</span> : null}
                         <span className="scout-pick-number">#{s.carNumber}</span>
                         <span className="scout-pick-name">{s.name}</span>
                         {s.groupName ? <span className="scout-pick-group">({s.groupName})</span> : null}

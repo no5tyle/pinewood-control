@@ -616,7 +616,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         completedAt: event.completedAt?.getTime() ?? null,
         totalVotes: votes.length,
         revealAt: event.popularVoteRevealAt?.getTime() ?? null,
-        revealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+        revealCountdownSeconds: 3,
         winner,
         ranks,
       });
@@ -699,13 +699,14 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         data: {
           popularVoteRevealAt: revealAt,
           popularVoteWinnerScoutId: winnerId,
+          popularVoteRevealCountdownSeconds: 3,
         },
       });
 
       await publishEvent(io, prisma, req.params.eventId);
       return res.status(200).json({
         revealAt: revealAt.getTime(),
-        revealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+        revealCountdownSeconds: 3,
         winnerScoutId: winnerId,
         totalVotes: votes.length,
       });
@@ -756,7 +757,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
         popularVote: {
           totalVotes: votes.length,
           revealAt: event.popularVoteRevealAt?.getTime() ?? null,
-          revealCountdownSeconds: event.popularVoteRevealCountdownSeconds ?? 10,
+          revealCountdownSeconds: 3,
           winner: popularVoteWinner,
           ranks: popularVoteRanks,
         },

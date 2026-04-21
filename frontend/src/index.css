@@ -150,6 +150,38 @@ input {
   color: var(--muted);
 }
 
+.heat-finisher-btn {
+  display: flex;
+  justify-content: center;
+}
+
+.heat-finisher-btn .scout-pick-card {
+  align-items: center;
+  width: 100%;
+}
+
+.heat-finisher-btn .scout-pick-lane {
+  width: 100%;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.heat-finisher-btn .scout-pick {
+  width: 100%;
+  justify-content: center;
+}
+
+.popular-vote-btn.voted {
+  background: var(--success-bg);
+  color: var(--text);
+}
+
+.vote-check {
+  font-weight: 900;
+}
+
 .scout-pick-number {
   font-family: monospace;
   font-weight: 800;

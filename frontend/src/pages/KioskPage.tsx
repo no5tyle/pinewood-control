@@ -280,15 +280,16 @@ export function KioskPage() {
                   {event.popularVoteRevealAt ? (
                     (() => {
                       const revealAt = event.popularVoteRevealAt ?? 0;
-                      const countdownSeconds = event.popularVoteRevealCountdownSeconds ?? 10;
-                      const revealEndMs = revealAt + countdownSeconds * 1000;
-                      const remainingSeconds = Math.max(0, Math.ceil((revealEndMs - nowMs) / 1000));
+                      const countdownSteps = event.popularVoteRevealCountdownSeconds ?? 3;
+                      const stepMs = 1500;
+                      const revealEndMs = revealAt + countdownSteps * stepMs;
+                      const remainingSteps = Math.max(0, Math.ceil((revealEndMs - nowMs) / stepMs));
 
-                      if (remainingSeconds > 0) {
+                      if (remainingSteps > 0) {
                         return (
                           <div className="kiosk-popular-countdown" aria-label="Popular vote countdown">
                             <div className="kiosk-popular-countdown-title">Popular Vote</div>
-                            <div className="kiosk-popular-countdown-number">{remainingSeconds}</div>
+                            <div className="kiosk-popular-countdown-number">{remainingSteps}</div>
                           </div>
                         );
                       }
@@ -421,4 +422,3 @@ export function KioskPage() {
     </main>
   );
 }
-

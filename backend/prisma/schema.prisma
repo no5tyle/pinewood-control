@@ -32,7 +32,7 @@ model Event {
   theme          String   @default("system")
   weightUnit     String   @default("g")
   popularVoteRevealAt DateTime?
-  popularVoteRevealCountdownSeconds Int @default(10)
+  popularVoteRevealCountdownSeconds Int @default(3)
   popularVoteWinnerScoutId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
