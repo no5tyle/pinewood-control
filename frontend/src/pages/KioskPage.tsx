@@ -53,10 +53,9 @@ export function KioskPage() {
   }, [showPairing]);
 
   useEffect(() => {
-    if (!event?.popularVoteRevealAt) return;
     const id = window.setInterval(() => setNowMs(Date.now()), 250);
     return () => window.clearInterval(id);
-  }, [event?.popularVoteRevealAt]);
+  }, []);
 
   const copyKioskLink = async () => {
     if (!event?.id) return;
