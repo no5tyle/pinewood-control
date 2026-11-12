@@ -165,8 +165,11 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
   return (
     <div className={`app-header-wrap ${kiosk ? "kiosk" : ""}`}>
       <header className="app-header">
-        <Link to="/" className="app-brand" aria-label="Pinewood Control home">
+        {/* The switcher between no5tyle's apps (no5tyle.github.io/shared/app-switcher.js); the mark shows until it loads */}
+        <n5-app-switcher current="pinewood">
           <BrandMark />
+        </n5-app-switcher>
+        <Link to="/" className="app-brand" aria-label="Pinewood Control home">
           <span className="brand-text">
             <span className="brand-title">Pinewood Control</span>
             <span className="brand-sub">Race night for pinewood derbies</span>

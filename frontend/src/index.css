@@ -597,7 +597,16 @@ input[type="checkbox"] {
 }
 
 /* Phones: the name and one menu button holding everything */
+/* The app switcher at the top left, then the name */
+.app-header > n5-app-switcher {
+  margin-right: -0.25rem;
+}
+
 @media (max-width: 768px) {
+  n5-app-switcher {
+    --n5-switch-size: 32px;
+  }
+
   .app-header {
     gap: 0.5rem;
     padding-inline: 0.75rem;
@@ -670,6 +679,7 @@ input[type="checkbox"] {
   backdrop-filter: var(--glass-filter);
 }
 
+.app-header-wrap.kiosk .app-brand,
 .app-header-wrap.kiosk .brand-text,
 .app-header-wrap.kiosk .app-nav,
 .app-header-wrap.kiosk .menu-name,
@@ -691,6 +701,22 @@ input[type="checkbox"] {
 .app-header-wrap.kiosk .brand-mark {
   width: 2.5rem;
   height: 2.5rem;
+}
+
+.app-header-wrap.kiosk n5-app-switcher {
+  --n5-switch-size: 2.5rem;
+  position: static;
+}
+
+/* The capsule sits at the top right, so the app menu opens leftwards from its right edge */
+.app-header-wrap.kiosk .app-header {
+  position: relative;
+}
+
+.app-header-wrap.kiosk .n5-switch-menu {
+  left: auto;
+  right: 0;
+  transform-origin: top right;
 }
 
 .app-header-wrap.kiosk .app-header-actions {
