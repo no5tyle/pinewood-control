@@ -291,11 +291,11 @@ export function RaceControlPage() {
               <p className="muted">Select {ordinal(finishOrder.length + 1)} place</p>
             ) : null}
             {finishOrder.length > 0 ? (
-              <div className="card" style={{ padding: "1rem", background: "var(--bg-soft)" }}>
-                <h3 style={{ margin: 0 }}>Selected Order</h3>
-                <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+              <div className="card selected-order">
+                <h3>Selected Order</h3>
+                <ol className="help-list tight">
                   {finishOrder.map((scoutId, index) => (
-                    <li key={`${scoutId}-${index}`} style={{ margin: "0.35rem 0" }}>
+                    <li key={`${scoutId}-${index}`}>
                       {ordinal(index + 1)}: <strong>#{scoutById.get(scoutId)?.carNumber}</strong> {scoutById.get(scoutId)?.name}
                       {scoutById.get(scoutId)?.groupName ? <span className="muted"> ({scoutById.get(scoutId)?.groupName})</span> : null}
                     </li>
@@ -321,7 +321,6 @@ export function RaceControlPage() {
             </div>
             <div className="wizard-actions">
               <button type="button" className="secondary-btn" onClick={undoFinisher} disabled={finishOrder.length === 0}>Undo</button>
-              <div style={{ flex: 1 }} />
               <button type="button" onClick={() => void submitHeatResult()} disabled={finishOrder.length !== currentHeat.laneAssignments.length}>Submit results</button>
             </div>
           </>
@@ -362,7 +361,7 @@ export function RaceControlPage() {
       ) : null}
       <section className="card">
         <div className="card-head">
-          <h2 style={{ margin: 0 }}>Popular Vote</h2>
+          <h2>Popular Vote</h2>
           <div className="inline-actions">
             <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>
               Refresh
@@ -382,21 +381,21 @@ export function RaceControlPage() {
           <>
             {popularVote.revealAt ? (
               <>
-                <h3 style={{ margin: "0.5rem 0 0" }}>Winner</h3>
+                <h3>Winner</h3>
                 {popularVote.winner ? (
-                  <p style={{ margin: 0 }}>
+                  <p>
                     <strong>#{popularVote.winner.carNumber}</strong> {popularVote.winner.name}
                     {popularVote.winner.groupName ? <span className="muted"> ({popularVote.winner.groupName})</span> : null}
                   </p>
                 ) : (
-                  <p className="muted" style={{ margin: 0 }}>No votes recorded.</p>
+                  <p className="muted">No votes recorded.</p>
                 )}
-                <p className="muted" style={{ margin: 0 }}>
+                <p className="muted">
                   {popularVote.totalVotes} vote{popularVote.totalVotes === 1 ? "" : "s"} cast
                 </p>
-                <details style={{ marginTop: "0.75rem" }}>
+                <details className="help-details">
                   <summary>Show ranks</summary>
-                  <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+                  <ol className="help-list tight">
                     {popularVote.ranks.map((r) => (
                       <li key={r.scout.id}>
                         <strong>#{r.scout.carNumber}</strong> {r.scout.name}
@@ -449,7 +448,6 @@ export function RaceControlPage() {
               <label>Points penalty (optional)<input type="number" min={0} step={1} value={latePenalty} onChange={(e) => setLatePenalty(e.target.value)} /></label>
               <div className="wizard-actions">
                 <button type="button" className="secondary-btn" onClick={() => setShowLateEntrant(false)}>Cancel</button>
-                <div style={{ flex: 1 }} />
                 <button type="submit" disabled={lateSaving}>{lateSaving ? "Adding..." : "Add"}</button>
               </div>
             </form>

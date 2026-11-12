@@ -98,26 +98,26 @@ export function ResultsPage() {
           <h2>Popular Vote</h2>
           {!results.popularVote.revealAt ? (
             <>
-              <p className="muted" style={{ margin: 0 }}>Not revealed yet.</p>
-              <p className="muted" style={{ margin: 0 }}>{results.popularVote.totalVotes} vote{results.popularVote.totalVotes === 1 ? "" : "s"} cast</p>
+              <p className="muted">Not revealed yet.</p>
+              <p className="muted">{results.popularVote.totalVotes} vote{results.popularVote.totalVotes === 1 ? "" : "s"} cast</p>
             </>
           ) : results.popularVote.totalVotes === 0 ? (
             <p className="muted">No votes recorded.</p>
           ) : (
             <>
-              <p style={{ margin: 0 }}>
+              <p>
                 Winner:{" "}
                 <strong>
                   {results.popularVote.winner ? `#${results.popularVote.winner.carNumber} ${results.popularVote.winner.name}` : "TBD"}
                 </strong>
                 {results.popularVote.winner?.groupName ? <span className="muted"> ({results.popularVote.winner.groupName})</span> : null}
               </p>
-              <p className="muted" style={{ margin: 0 }}>
+              <p className="muted">
                 {results.popularVote.totalVotes} vote{results.popularVote.totalVotes === 1 ? "" : "s"} cast
               </p>
-              <details style={{ marginTop: "0.5rem" }}>
+              <details className="help-details">
                 <summary>Show ranks</summary>
-                <ol style={{ margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+                <ol className="help-list tight">
                   {results.popularVote.ranks.map((r) => (
                     <li key={r.scout.id}>
                       <strong>#{r.scout.carNumber}</strong> {r.scout.name}

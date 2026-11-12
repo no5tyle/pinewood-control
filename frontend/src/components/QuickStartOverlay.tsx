@@ -48,8 +48,8 @@ export function QuickStartOverlay() {
     <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Quick start guide">
       <section className="card quickstart-card" ref={cardRef} tabIndex={-1}>
         <button className="close-overlay" onClick={close} aria-label="Close">×</button>
-        <h2 style={{ margin: 0 }}>Quick Start</h2>
-        <p className="muted" style={{ margin: 0 }}>
+        <h2>Quick Start</h2>
+        <p className="muted">
           Create an event, link an operator device, then run heats and submit results.
         </p>
         <ol className="quickstart-steps">
@@ -60,7 +60,6 @@ export function QuickStartOverlay() {
         </ol>
         <div className="quickstart-actions">
           <button className="secondary-btn" onClick={() => { close(); navigate("/help"); }}>More</button>
-          <div style={{ flex: 1 }} />
           <button onClick={close}>Get started</button>
         </div>
       </section>

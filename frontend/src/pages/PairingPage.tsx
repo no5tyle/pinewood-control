@@ -83,7 +83,7 @@ export function PairingPage() {
               className="pairing-input"
             />
           </label>
-          {loading ? <p className="muted" style={{ textAlign: "center" }}>Linking device...</p> : null}
+          {loading ? <p className="muted center">Linking device…</p> : null}
         </form>
         {error ? <p className="error">{error}</p> : null}
       </section>

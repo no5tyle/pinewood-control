@@ -2312,3 +2312,146 @@ label.check {
 .skipped summary {
   cursor: pointer;
 }
+
+/* ---------------------------------------------------------------- Home, log in, help */
+.hero-card {
+  justify-items: start;
+  gap: 1rem;
+  padding: 2rem 1.75rem;
+  background: linear-gradient(135deg, var(--tint-fill) 0%, var(--card) 70%);
+}
+
+.hero-lede {
+  max-width: 36rem;
+  color: var(--text-2);
+  font-size: 1.125rem;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.hero-actions button {
+  min-height: 3rem;
+  padding: 0.6rem 1.5rem;
+  font-size: 1.0625rem;
+}
+
+.secondary-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0 1.4rem;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--tint);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr));
+  gap: 1rem;
+}
+
+.step {
+  align-content: start;
+  gap: 0.4rem;
+}
+
+.step h2 {
+  font-size: 1.0625rem;
+}
+
+.step-number {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: var(--tint-fill);
+  color: var(--tint);
+  font-weight: 700;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  margin: 1.5rem auto 0;
+  padding: 1.5rem;
+}
+
+.auth-card > .muted {
+  margin-top: -0.4rem;
+}
+
+.auth-switch {
+  text-align: center;
+}
+
+.help-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.help-list.tight {
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.help-subhead {
+  font-weight: 700;
+}
+
+.help-details summary {
+  color: var(--link);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.help-details-body {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+@media (max-width: 768px) {
+  .hero-card {
+    padding: 1.5rem 1.15rem;
+  }
+
+  .hero-lede {
+    font-size: 1rem;
+  }
+}
+
+.selected-order {
+  gap: 0.4rem;
+  padding: 0.9rem 1rem;
+}
+
+.stack.tight {
+  gap: 0.5rem;
+}
+
+.grow {
+  flex: 1;
+}
+
+.center {
+  text-align: center;
+}
+
+.break-all {
+  word-break: break-all;
+}
+
+.naming-card {
+  position: relative;
+}

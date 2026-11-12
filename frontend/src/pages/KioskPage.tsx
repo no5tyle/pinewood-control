@@ -216,7 +216,7 @@ export function KioskPage() {
 
       {isNewEvent ? (
         <div className="kiosk-naming-overlay">
-          <section className="card" style={{ position: "relative" }}>
+          <section className="card naming-card">
             <button className="close-overlay" onClick={() => navigate(-1)} aria-label="Close">×</button>
             <h2>Welcome to Pinewood Derby</h2>
             <p>To get started, please give this event a name.</p>
@@ -378,7 +378,7 @@ export function KioskPage() {
                   <code>{pairingCode}</code>
                 </div>
               ) : null}
-              {qrUrl ? <div className="overlay-note" style={{ wordBreak: "break-all" }}>{qrUrl}</div> : null}
+              {qrUrl ? <div className="overlay-note break-all">{qrUrl}</div> : null}
               <p className="overlay-note">Scan QR and enter code to link device</p>
               <div className="overlay-actions">
                 <a href={`/pair/${qrToken}?code=${pairingCode}`} target="_blank" rel="noopener noreferrer" className="direct-link">

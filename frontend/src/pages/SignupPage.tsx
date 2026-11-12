@@ -30,18 +30,19 @@ export function SignupPage() {
   return (
     <main className="home-page">
       <AppHeader />
-      <section className="card" style={{ maxWidth: "400px", margin: "2rem auto" }}>
-        <h1>Sign Up</h1>
+      <section className="card auth-card">
+        <h1>Create an account</h1>
+        <p className="muted">Keep your events and Race Patrols, and use them on any device.</p>
         <form onSubmit={handleSubmit} className="stack">
-          <label>Name <input value={name} onChange={(e) => setName(e.target.value)} required /></label>
-          <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-          <label>Password <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          <label>Name <input autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required /></label>
+          <label>Email <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+          <label>Password <input type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
           <button type="submit">Create Account</button>
         </form>
-        <p style={{ marginTop: "1rem", textAlign: "center" }}>
-          {"Already have an account? "} <Link to="/login">Login</Link>
+        <p className="auth-switch">
+          {"Already have an account? "} <Link to="/login">Log in</Link>
         </p>
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error" role="alert">{error}</p> : null}
       </section>
     </main>
   );

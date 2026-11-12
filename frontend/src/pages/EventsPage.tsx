@@ -259,7 +259,7 @@ export function EventsPage() {
                 <div key={event.id} className="event-item card">
                   <div className="event-info">
                     <div className="event-title-row">
-                      <h3 style={{ margin: 0 }}>{event.name}</h3>
+                      <h3>{event.name}</h3>
                       <button
                         className="danger-btn corner-delete-btn icon-btn"
                         onClick={() => void deleteGuestEvent(event.id)}
@@ -321,7 +321,7 @@ export function EventsPage() {
                 <div key={event.id} className="event-item card">
                   <div className="event-info">
                     <div className="event-title-row">
-                      <h3 style={{ margin: 0 }}>{event.name}</h3>
+                      <h3>{event.name}</h3>
                       <button
                         className="danger-btn corner-delete-btn icon-btn"
                         onClick={() => void deleteEvent(event.id)}

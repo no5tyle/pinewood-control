@@ -29,17 +29,18 @@ export function LoginPage() {
   return (
     <main className="home-page">
       <AppHeader />
-      <section className="card" style={{ maxWidth: "400px", margin: "2rem auto" }}>
-        <h1>Login</h1>
+      <section className="card auth-card">
+        <h1>Log in</h1>
+        <p className="muted">Your events and Race Patrols, on any device.</p>
         <form onSubmit={handleSubmit} className="stack">
-          <label>Email <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
-          <label>Password <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
-          <button type="submit">Login</button>
+          <label>Email <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required /></label>
+          <label>Password <input type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          <button type="submit">Log in</button>
         </form>
-        <p style={{ marginTop: "1rem", textAlign: "center" }}>
-          {"Don't have an account? "} <Link to="/signup">Sign up</Link>
+        <p className="auth-switch">
+          {"No account yet? "} <Link to="/signup">Create one</Link>
         </p>
-        {error ? <p className="error">{error}</p> : null}
+        {error ? <p className="error" role="alert">{error}</p> : null}
       </section>
     </main>
   );

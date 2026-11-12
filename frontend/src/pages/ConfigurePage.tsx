@@ -221,7 +221,6 @@ export function ConfigurePage() {
         {step > 1 ? (
           <div className="wizard-actions">
             <button type="button" className="secondary-btn" onClick={() => setStep(step - 1)}>Back</button>
-            <div style={{ flex: 1 }} />
             <button type="submit">{step === 3 ? "Continue to contestants" : "Next"}</button>
           </div>
         ) : null}

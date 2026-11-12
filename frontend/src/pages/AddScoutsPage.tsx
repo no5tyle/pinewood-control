@@ -148,14 +148,14 @@ export function AddScoutsPage() {
             <h2>Race Patrols</h2>
             <Link to="/patrols" className="link-btn">Manage patrols</Link>
           </div>
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="muted">
             Select one or more patrols to add all racers at once. The next block of car numbers is reserved, then randomly assigned within that block.
           </p>
           {patrolLoading ? <p className="muted">Loading patrols…</p> : null}
           {patrolError ? <p className="error">{patrolError}</p> : null}
           {!patrolLoading && patrols.length === 0 ? <p className="muted">No patrols yet.</p> : null}
           {patrols.length > 0 ? (
-            <div className="stack" style={{ gap: "0.5rem" }}>
+            <div className="stack tight">
               {patrols.map((p) => (
                 (() => {
                   const status = patrolImportStatusById.get(p.id);
@@ -165,15 +165,14 @@ export function AddScoutsPage() {
                   const partiallyAdded = total > 0 && missing > 0 && missing < total;
                   const statusText = fullyAdded ? "Added" : partiallyAdded ? `Missing ${missing}` : "";
                   return (
-                    <label key={p.id} style={{ display: "flex", alignItems: "center", gap: "0.6rem", fontWeight: 700 }}>
+                    <label key={p.id} className="check">
                       <input
                         type="checkbox"
                         checked={selectedPatrolIds.includes(p.id)}
                         onChange={() => togglePatrol(p.id)}
                         disabled={missing === 0}
-                        style={{ width: "1.1rem", height: "1.1rem" }}
                       />
-                      <span style={{ flex: 1 }}>
+                      <span className="grow">
                         {p.name} <span className="muted">({p.racers.length} racer{p.racers.length === 1 ? "" : "s"})</span>
                       </span>
                       {statusText ? <span className="muted">{statusText}</span> : null}
@@ -183,7 +182,7 @@ export function AddScoutsPage() {
               ))}
             </div>
           ) : null}
-          <div className="wizard-actions" style={{ marginTop: "0.5rem" }}>
+          <div className="wizard-actions">
             <button
               type="button"
               className="secondary-btn"
@@ -192,7 +191,6 @@ export function AddScoutsPage() {
             >
               Clear
             </button>
-            <div style={{ flex: 1 }} />
             <button
               type="button"
               onClick={() => void importSelectedPatrols()}
@@ -227,7 +225,6 @@ export function AddScoutsPage() {
 
       <div className="wizard-actions">
         <button className="secondary-btn" onClick={() => navigate(-1)}>Back to settings</button>
-        <div style={{ flex: 1 }} />
         <button onClick={() => void finishSetup()} disabled={event.scouts.length < 2}>
           {event.scouts.length < 2 ? "Add at least 2 racers" : "Start Race Control"}
         </button>

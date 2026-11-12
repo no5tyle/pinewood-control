@@ -28,17 +28,41 @@ export function KioskBootPage() {
   return (
     <main className="home-page">
       <AppHeader />
-      <section className="card success" style={{ textAlign: "center", padding: "4rem 2rem" }}>
-        <h1>Pinewood Derby Control</h1>
-        <p>Ready to start a new tournament?</p>
-        <button onClick={startKiosk} disabled={loading} style={{ fontSize: "1.5rem", padding: "1rem 2rem" }}>
-          {loading ? "Starting..." : "Create Guest Event"}
-        </button>
-        <p className="muted" style={{ marginTop: "2rem" }}>
-          Guest events are temporary. <Link to="/login">Login</Link> to save your races permanently.
+      <section className="card hero-card">
+        <h1>Run your pinewood derby</h1>
+        <p className="hero-lede">
+          A big screen shows each heat and the standings. A phone runs the races: tap the finishers, and the
+          next heat is drawn for you.
         </p>
+        <div className="hero-actions">
+          <button onClick={startKiosk} disabled={loading}>
+            {loading ? "Starting…" : "Start a guest event"}
+          </button>
+          <Link to="/login" className="secondary-link">Log in</Link>
+        </div>
+        <p className="fine-print">
+          Guest events belong to this device and are deleted after 24 hours. <Link to="/signup">Create an account</Link>{" "}
+          to keep your events and reuse Race Patrols.
+        </p>
+      </section>
+
+      <section className="steps" aria-label="How it works">
+        <div className="step card">
+          <span className="step-number">1</span>
+          <h2>Open the kiosk</h2>
+          <p className="muted">On the laptop or TV everyone can see. It shows a QR code to pair a phone.</p>
+        </div>
+        <div className="step card">
+          <span className="step-number">2</span>
+          <h2>Pair a phone</h2>
+          <p className="muted">Scan the code and enter the 6 digits. Set up lanes, points and racers from the phone.</p>
+        </div>
+        <div className="step card">
+          <span className="step-number">3</span>
+          <h2>Race</h2>
+          <p className="muted">Tap the cars in finishing order. Late entrants, drop-outs and a popular vote are covered.</p>
+        </div>
       </section>
     </main>
   );
 }
-
