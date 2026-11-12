@@ -5,8 +5,9 @@ Pinewood Control is a web app for running a Pinewood Derby style race with a **K
 - Live updating results via Socket.IO
 - Mid-event late entrants (with a points penalty) and racer drop-outs (recorded in history)
 - Anonymous “Popular Vote” with a controller-triggered reveal + kiosk countdown
-- Signed-in accounts with reusable **Race Patrols** (racer groups) for faster event setup
-- An optional **electronic timer** add-on: a PDT-compatible timer (such as [pinewood-time](https://github.com/no5tyle/pinewood-time)) plugged into the operator's computer fills in each heat's finish order from its lane times (Chrome or Edge, via Web Serial)
+- Signed-in accounts with reusable **Race Patrols** (racer groups) for faster event setup: type them in, upload a CSV (adding to or replacing the patrol), or import them from **Scouts Australia's Terrain** and resync later
+- Saved **Race Setups** (lanes, elimination points, theme, weight unit), so an event is set up in one tap and only needs its racers
+- An optional **electronic timer** add-on: a PDT-compatible timer (such as [pinewood-time](https://github.com/no5tyle/pinewood-time)) plugged into the operator's computer fills in each heat's finish order from its lane times, and the kiosk shows the times. See [Electronic timer](#electronic-timer-optional)
 
 Live app: https://pinewood.nostyle.app
 
@@ -23,6 +24,28 @@ Pinewood Control shares one look with no5tyle's other apps ([Beacon](https://no5
 - **Kiosk device** (big screen): open the Kiosk page for the event and display standings/results.
 - **Operator device** (phone/tablet/laptop): pair to the kiosk using QR + code, then run heats and submit full finish order each race.
 - **Guests** can run events locally (guest mode). Signed-in accounts support multi-device access and Race Patrols.
+- **Electronic timer** (optional): plug a PDT-compatible timer into the operator's computer and the finish order fills itself in. See [below](#electronic-timer-optional).
+
+## Electronic timer (optional)
+
+Off unless you turn it on, and only offered on a computer. On **Race Control**, in Chrome or Edge on a computer, press **Use a timer**, next to Add late entrant. It's remembered on that device. Phones and tablets don't show the button: a timer can't be plugged into them, and Safari and Firefox can't use serial ports.
+
+![The Use a timer button on Race Control](docs/images/use-a-timer.png)
+
+1. Plug a PDT-compatible timer into the computer by USB and press **Connect timer**. The browser asks you to choose its port the first time; after that it reconnects by itself.
+2. Each new heat readies the timer, with the empty lanes left out so the race doesn't wait for them.
+3. When the cars are in, the finish order fills itself in, fastest first, with each car's lane and time. Two cars on the same time, or a lane with no time (placed last), are flagged: check them, using Undo to change the order, then submit.
+4. With a [pinewood-time](https://github.com/no5tyle/pinewood-time) timer, its button submits the heat and generates the next one, so a race can run from the track. While connected, the app points the button at itself, and stops it also typing a key; that isn't saved on the timer.
+
+![Times filled in from the timer, with a tie flagged](docs/images/timer-results.png)
+
+The times are saved with each heat. The kiosk shows them on the heat winner screen, and as "Last heat" under the next heat. Heats entered by hand look as they always have.
+
+![The kiosk's heat winner screen with times](docs/images/kiosk-timer-winner.png)
+
+**Turn off the timer add-on**, at the bottom of the timer card, puts Race Control back as it was.
+
+How it works: the browser talks to the timer over the [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) (`frontend/src/shared/pdtSerial.ts`). The protocol and the finish-order logic are pure and tested (`frontend/src/shared/pdt.ts`), the connection is `frontend/src/hooks/useTimer.ts`, and the card is `frontend/src/components/TimerPanel.tsx`. The backend only stores each heat's times (`Heat.laneTimes`); nothing on the server talks to the timer.
 
 ## Tech stack
 
@@ -32,6 +55,7 @@ Pinewood Control shares one look with no5tyle's other apps ([Beacon](https://no5
 - Vite 8
 - Socket.IO client
 - QR tools: `qrcode`, `html5-qrcode`
+- Web Serial (Chrome and Edge) for the optional electronic timer
 
 **Backend**
 - Node.js (run via `tsx`)
@@ -116,7 +140,7 @@ npm run db:push
 ```
 
 Notes:
-- Run `npm run db:push` any time the Prisma schema changes (it uses `prisma db push`).
+- Run `npm run db:push` any time the Prisma schema changes (it uses `prisma db push`). The timer's times added `Heat.laneTimes` (with a default, so existing heats are unaffected).
 - `CORS_ORIGIN` should match your frontend origin(s). It can be a comma-separated list.
 
 ### Frontend deployment (static hosting)
