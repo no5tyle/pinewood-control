@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { quickStartOpenEventName } from "../shared/events";
 import { quickStartDismissedStorageKey } from "../shared/storage";
@@ -7,15 +7,25 @@ export function QuickStartOverlay() {
   const navigate = useNavigate();
   const location = useLocation();
   const [forcedOpen, setForcedOpen] = useState(false);
+  // Kept in state, not just read from storage: closing it the first time must re-render to hide it
+  const [dismissed, setDismissed] = useState(
+    () => window.localStorage.getItem(quickStartDismissedStorageKey) === "1",
+  );
 
   const close = useCallback(() => {
     window.localStorage.setItem(quickStartDismissedStorageKey, "1");
+    setDismissed(true);
     setForcedOpen(false);
   }, []);
 
-  const dismissed = window.localStorage.getItem(quickStartDismissedStorageKey) === "1";
   const autoOpen = !dismissed && (location.pathname === "/" || location.pathname === "/events");
   const open = forcedOpen || autoOpen;
+  const cardRef = useRef<HTMLElement>(null);
+
+  // Focus the card, not its close button, so the close button doesn't open with a focus ring
+  useEffect(() => {
+    if (open) cardRef.current?.focus();
+  }, [open]);
 
   useEffect(() => {
     const onOpen = () => setForcedOpen(true);
@@ -36,8 +46,8 @@ export function QuickStartOverlay() {
 
   return (
     <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Quick start guide">
-      <section className="card quickstart-card">
-        <button className="close-overlay" onClick={close} aria-label="Close" autoFocus>×</button>
+      <section className="card quickstart-card" ref={cardRef} tabIndex={-1}>
+        <button className="close-overlay" onClick={close} aria-label="Close">×</button>
         <h2 style={{ margin: 0 }}>Quick Start</h2>
         <p className="muted" style={{ margin: 0 }}>
           Create an event, link an operator device, then run heats and submit results.
@@ -51,7 +61,7 @@ export function QuickStartOverlay() {
         <div className="quickstart-actions">
           <button className="secondary-btn" onClick={() => { close(); navigate("/help"); }}>More</button>
           <div style={{ flex: 1 }} />
-          <button onClick={close}>Get Started</button>
+          <button onClick={close}>Get started</button>
         </div>
       </section>
     </div>

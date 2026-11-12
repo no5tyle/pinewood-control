@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { AppHeader } from "../components/AppHeader";
 import { AuthRequiredPage } from "../components/AuthRequiredPage";
+import { PatrolImportDialog, type ImportSource } from "../components/PatrolImportDialog";
 import { TrashIcon } from "../components/TrashIcon";
 import { api } from "../shared/api";
+import { CSV_TEMPLATE, racersFromCsv } from "../shared/racerImport";
 import type { RacePatrol, RacePatrolListResponse } from "../shared/types";
 
 export function RacePatrolsPage() {
@@ -18,6 +20,9 @@ export function RacePatrolsPage() {
   const [patrolName, setPatrolName] = useState("");
   const [racers, setRacers] = useState<Array<{ id: string; name: string; groupName: string; weight: string }>>([]);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState<ImportSource | null>(null);
+  const [notice, setNotice] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const loadPatrols = useCallback(async () => {
     if (!user) return;
@@ -115,6 +120,29 @@ export function RacePatrolsPage() {
     }
   };
 
+  const readCsv = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setError("");
+    setNotice("");
+    try {
+      const { racers, skipped } = racersFromCsv(await file.text());
+      setImporting({ kind: "csv", fileName: file.name, racers, skipped });
+    } catch {
+      setError("That file couldn't be read. Save it from your spreadsheet as CSV and try again.");
+    }
+  };
+
+  const downloadTemplate = () => {
+    const url = URL.createObjectURL(new Blob([CSV_TEMPLATE], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "race-patrol-template.csv";
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
   const deletePatrol = async (id: string) => {
     if (!window.confirm("Delete this Race Patrol? This cannot be undone.")) return;
     setError("");
@@ -133,41 +161,69 @@ export function RacePatrolsPage() {
         <div className="card-head">
           <div>
             <h1>Race Patrols</h1>
-            <p className="muted">Create reusable racer groups you can add to events in one action.</p>
+            <p className="muted">Lists of racers you can add to an event in one go: a patrol, a six, or the whole unit.</p>
           </div>
           <div className="inline-actions">
             <button onClick={openNew}>New patrol</button>
             <button className="secondary-btn" onClick={() => navigate("/events")}>Back to events</button>
           </div>
         </div>
+        <div className="import-actions" aria-label="Import racers">
+          <button type="button" className="import-option" onClick={() => { setNotice(""); setImporting({ kind: "terrain" }); }}>
+            <strong>Import from Terrain</strong>
+            <span className="muted">Your unit's youth, grouped by patrol</span>
+          </button>
+          <button type="button" className="import-option" onClick={() => fileRef.current?.click()}>
+            <strong>Import a spreadsheet</strong>
+            <span className="muted">A CSV file with names, and groups and weights if you have them</span>
+          </button>
+          <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" hidden onChange={(e) => void readCsv(e)} aria-label="CSV file" />
+        </div>
+        <p className="fine-print">
+          Spreadsheet columns: Name (or First name and Last name), Group (or Patrol, Six, Den) and Weight.{" "}
+          <button type="button" className="text-btn" onClick={downloadTemplate}>Download a template</button>
+        </p>
+        {notice ? <p className="banner success-banner" role="status">{notice}</p> : null}
         {loading ? <p className="muted">Loading patrols…</p> : null}
-        {error ? <p className="error">{error}</p> : null}
+        {error && !editorOpen ? <p className="error">{error}</p> : null}
       </section>
 
       <section className="card">
         <h2>Your Patrols</h2>
-        {patrols.length === 0 ? <p className="muted">No patrols yet.</p> : null}
-        <div className="event-list">
+        {patrols.length === 0 && !loading ? <p className="muted">No patrols yet. Make one, or import your unit above.</p> : null}
+        <div className="patrol-list">
           {patrols.map((p) => (
-            <div key={p.id} className="event-item card" style={{ gap: "0.5rem" }}>
-              <div className="event-info">
-                <div className="patrol-row">
-                  <div className="patrol-row-left">
-                    <h3 style={{ margin: 0 }}>{p.name}</h3>
-                    <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
-                  </div>
-                  <div className="inline-actions patrol-actions">
-                    <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>
-                    <button className="danger-btn icon-btn" onClick={() => void deletePatrol(p.id)} aria-label="Delete patrol" title="Delete">
-                      <TrashIcon />
-                    </button>
-                  </div>
+            <div key={p.id} className="patrol-card">
+              <div className="patrol-row">
+                <div className="patrol-row-left">
+                  <h3>{p.name}</h3>
+                  <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
+                </div>
+                <div className="inline-actions patrol-actions">
+                  <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>
+                  <button className="danger-btn icon-btn" onClick={() => void deletePatrol(p.id)} aria-label={`Delete ${p.name}`} title="Delete">
+                    <TrashIcon />
+                  </button>
                 </div>
               </div>
+              <p className="patrol-names">{p.racers.map((r) => r.name).join(", ")}</p>
             </div>
           ))}
         </div>
       </section>
+
+      {importing ? (
+        <PatrolImportDialog
+          source={importing}
+          existing={patrols}
+          onClose={() => setImporting(null)}
+          onImported={(message) => {
+            setImporting(null);
+            setNotice(message);
+            void loadPatrols();
+          }}
+        />
+      ) : null}
 
       {editorOpen ? (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Edit race patrol">
@@ -179,11 +235,11 @@ export function RacePatrolsPage() {
                 Patrol name
                 <input value={patrolName} onChange={(e) => setPatrolName(e.target.value)} autoFocus required />
               </label>
-              <div style={{ display: "grid", gap: "0.5rem" }}>
-                <div style={{ fontWeight: 800 }}>Racers</div>
+              <div className="racer-rows">
+                <h3>Racers ({racers.filter((r) => r.name.trim()).length})</h3>
                 {racers.map((r) => (
-                  <div key={r.id} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 110px auto", gap: "0.5rem", alignItems: "end" }}>
-                    <label style={{ margin: 0 }}>
+                  <div key={r.id} className="racer-row">
+                    <label>
                       Name
                       <input
                         value={r.name}
@@ -191,14 +247,14 @@ export function RacePatrolsPage() {
                         required
                       />
                     </label>
-                    <label style={{ margin: 0 }}>
+                    <label>
                       Group (optional)
                       <input
                         value={r.groupName}
                         onChange={(e) => setRacers((prev) => prev.map((x) => (x.id === r.id ? { ...x, groupName: e.target.value } : x)))}
                       />
                     </label>
-                    <label style={{ margin: 0 }}>
+                    <label>
                       Weight
                       <input
                         type="number"
@@ -209,11 +265,12 @@ export function RacePatrolsPage() {
                     </label>
                     <button
                       type="button"
-                      className="secondary-btn"
+                      className="danger-btn entry-remove"
                       onClick={() => setRacers((prev) => prev.filter((x) => x.id !== r.id))}
                       disabled={racers.length <= 1}
+                      aria-label={r.name ? `Remove ${r.name}` : "Remove racer"}
                     >
-                      Remove
+                      ×
                     </button>
                   </div>
                 ))}
@@ -227,7 +284,6 @@ export function RacePatrolsPage() {
               </div>
               <div className="wizard-actions">
                 <button type="button" className="secondary-btn" onClick={closeEditor} disabled={saving}>Cancel</button>
-                <div style={{ flex: 1 }} />
                 <button type="button" onClick={() => void save()} disabled={saving}>
                   {saving ? "Saving…" : "Save"}
                 </button>

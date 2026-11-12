@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { BackendStatusBanner } from "./BackendStatusBanner";
-import { donateOpenEventName, quickStartOpenEventName } from "../shared/events";
+import { quickStartOpenEventName } from "../shared/events";
 
 function LinkIcon() {
   return (
@@ -25,17 +25,6 @@ function HelpIcon() {
       <path
         fill="currentColor"
         d="M12 2a10 10 0 1 0 .001 20.001A10 10 0 0 0 12 2Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm0-5a1.25 1.25 0 1 0 0 2.5A1.25 1.25 0 0 0 12 15Zm0-10a4 4 0 0 0-4 4 1 1 0 1 0 2 0 2 2 0 1 1 3.2 1.6c-.87.65-1.2 1.17-1.2 2.4a1 1 0 1 0 2 0c0-.63.14-.88.8-1.38A4 4 0 0 0 12 5Z"
-      />
-    </svg>
-  );
-}
-
-function HeartIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        fill="currentColor"
-        d="M12 21s-7-4.35-9.33-8.46C.76 9.06 2.2 5.5 5.9 4.6c1.9-.46 3.7.2 4.96 1.6 1.26-1.4 3.06-2.06 4.96-1.6 3.7.9 5.14 4.46 3.23 7.94C19 16.65 12 21 12 21Z"
       />
     </svg>
   );
@@ -134,10 +123,6 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
     setMenuOpen(false);
     window.dispatchEvent(new Event(quickStartOpenEventName));
   };
-  const openDonate = () => {
-    setMenuOpen(false);
-    window.dispatchEvent(new Event(donateOpenEventName));
-  };
 
   const pages = (
     <>
@@ -154,10 +139,6 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
       <button type="button" className="nav-link" onClick={openHelp}>
         <HelpIcon />
         <span>Help</span>
-      </button>
-      <button type="button" className="nav-link" onClick={openDonate}>
-        <HeartIcon />
-        <span>Donate</span>
       </button>
     </>
   );
