@@ -2634,3 +2634,52 @@ button.danger-solid {
   white-space: pre-wrap;
 }
 .timer-off { margin: 0.75rem 0 0; font-size: 0.85rem; }
+
+/* Kiosk: timer times for the heat just raced (only when an electronic timer timed it) */
+.winner-time {
+  font-size: 3rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--banner-bg);
+  line-height: 1;
+}
+.kiosk-heat-times {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  max-width: 640px;
+  display: grid;
+  gap: 0.5rem;
+  color: var(--kiosk-text);
+}
+.kiosk-heat-times li {
+  display: grid;
+  grid-template-columns: 3.5rem 1fr auto;
+  align-items: baseline;
+  gap: 0.75rem;
+  font-size: 1.35rem;
+}
+.kiosk-time-place { font-weight: 800; opacity: 0.75; }
+.kiosk-time-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kiosk-time-value { font-variant-numeric: tabular-nums; font-weight: 800; color: var(--banner-bg); }
+.kiosk-last-heat {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 2rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+.kiosk-last-heat-label {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  color: var(--kiosk-text);
+}
+.kiosk-last-heat .kiosk-heat-times li { font-size: 1.15rem; }

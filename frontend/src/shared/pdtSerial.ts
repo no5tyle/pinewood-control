@@ -9,6 +9,19 @@ export function serialSupported(): boolean {
   return typeof navigator !== "undefined" && Boolean(navigator.serial);
 }
 
+/** A phone or tablet: a timer can't be plugged in there, even where the browser has serial support */
+function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  // Either sign is enough: the browser saying it's mobile, or a phone or tablet in its user agent
+  const uaData = (navigator as Navigator & { userAgentData?: { mobile?: boolean } }).userAgentData;
+  return uaData?.mobile === true || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+}
+
+/** Whether this device can use the timer add-on: a computer with a browser that has Web Serial */
+export function timerAvailable(): boolean {
+  return serialSupported() && !isMobileDevice();
+}
+
 export class PdtConnection {
   private port: SerialPort;
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;

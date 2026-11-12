@@ -7,7 +7,7 @@
 */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { armCommands, parseLine } from "../shared/pdt";
-import { PdtConnection, serialSupported } from "../shared/pdtSerial";
+import { PdtConnection, serialSupported, timerAvailable } from "../shared/pdtSerial";
 
 const enabledStorageKey = "pinewood_timer_addon";
 
@@ -176,7 +176,7 @@ export function useTimer(handlers: TimerHandlers) {
 
   // With the add-on on, reconnect to a timer this site has been allowed before, if it's plugged in
   useEffect(() => {
-    if (!enabled || !serialSupported()) return;
+    if (!enabled || !timerAvailable()) return;
     let cancelled = false;
     void (async () => {
       const conn = await PdtConnection.remembered();
@@ -227,6 +227,8 @@ export function useTimer(handlers: TimerHandlers) {
 
   return {
     supported: serialSupported(),
+    /** A computer with Web Serial: the only place the add-on is offered */
+    available: timerAvailable(),
     enabled,
     setEnabled,
     connected,

@@ -88,6 +88,7 @@ export function serializeEvent(event: any) {
       laneAssignments: safeParseJSON<string[]>(h.laneAssignments, []),
       finishOrder: safeParseJSON<string[]>(h.finishOrder, []),
       loserScoutIds: safeParseJSON<string[]>(h.loserScoutIds, []),
+      laneTimes: safeParseJSON<Record<string, number | null>>(h.laneTimes ?? "{}", {}),
       createdAt: h.createdAt.getTime(),
     })),
     standings: sortStandings(scouts),

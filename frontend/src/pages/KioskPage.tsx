@@ -10,7 +10,8 @@ import { api, copyToClipboardWithFallback, isAuthRequiredError } from "../shared
 import { socket } from "../shared/socket";
 import { getQrPrefix } from "../shared/qr";
 import { addLocalGuestEventId, kioskSessionStorageKey, removeLocalGuestEventId } from "../shared/storage";
-import type { EventState, KioskSessionStatus, Scout, ThemeName } from "../shared/types";
+import { formatSeconds } from "../shared/pdt";
+import type { EventState, Heat, KioskSessionStatus, Scout, ThemeName } from "../shared/types";
 
 export function KioskPage() {
   const { eventId } = useParams();
@@ -172,6 +173,13 @@ export function KioskPage() {
 
   const currentHeat = useMemo(() => event?.heats?.find((h) => h.id === event.currentHeatId), [event]);
   const scoutMap = useMemo(() => new Map((event?.scouts ?? []).map((s) => [s.id, s])), [event?.scouts]);
+  // The latest heat with results, if an electronic timer timed it: its places and times are shown
+  const lastTimedHeat = useMemo(() => {
+    const done = (event?.heats ?? []).filter((h) => (h.finishOrder?.length ?? 0) > 0);
+    if (done.length === 0) return null;
+    const last = done.reduce((a, b) => ((b.createdAt ?? 0) >= (a.createdAt ?? 0) ? b : a));
+    return last.laneTimes && Object.keys(last.laneTimes).length > 0 ? last : null;
+  }, [event?.heats]);
 
   useEffect(() => {
     if (!event) return;
@@ -328,6 +336,12 @@ export function KioskPage() {
                       <div className="winner-number-large">#{previousWinner.carNumber}</div>
                       <div className="winner-name-large">{previousWinner.name}</div>
                       {previousWinner.groupName ? <div className="winner-group">{previousWinner.groupName}</div> : null}
+                      {lastTimedHeat && lastTimedHeat.winnerScoutId === previousWinner.id ? (
+                        <>
+                          <div className="winner-time">{formatSeconds(lastTimedHeat.laneTimes?.[previousWinner.id] ?? null)}</div>
+                          <HeatTimes heat={lastTimedHeat} scoutMap={scoutMap} />
+                        </>
+                      ) : null}
                       <div className="winner-sub">Readying next heat...</div>
                     </div>
                   ) : (
@@ -348,6 +362,12 @@ export function KioskPage() {
                           </div>
                         ))}
                       </div>
+                      {lastTimedHeat ? (
+                        <div className="kiosk-last-heat">
+                          <div className="kiosk-last-heat-label">Last heat</div>
+                          <HeatTimes heat={lastTimedHeat} scoutMap={scoutMap} />
+                        </div>
+                      ) : null}
                     </>
                   )}
                 </div>
@@ -422,5 +442,25 @@ export function KioskPage() {
         </button>
       ) : null}
     </main>
+  );
+}
+
+const placeNames = ["1st", "2nd", "3rd"];
+
+/** A heat's places with each car's timer time */
+function HeatTimes({ heat, scoutMap }: { heat: Heat; scoutMap: Map<string, Scout> }) {
+  return (
+    <ol className="kiosk-heat-times">
+      {(heat.finishOrder ?? []).map((scoutId, i) => {
+        const scout = scoutMap.get(scoutId);
+        return (
+          <li key={scoutId}>
+            <span className="kiosk-time-place">{placeNames[i] ?? `${i + 1}th`}</span>
+            <span className="kiosk-time-name">#{scout?.carNumber} {scout?.name}</span>
+            <span className="kiosk-time-value">{formatSeconds(heat.laneTimes?.[scoutId] ?? null)}</span>
+          </li>
+        );
+      })}
+    </ol>
   );
 }

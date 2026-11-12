@@ -18,6 +18,8 @@ export type Heat = {
   laneAssignments: string[];
   finishOrder?: string[];
   loserScoutIds?: string[];
+  /** Each racer's time in seconds from an electronic timer (null for no time), when one was used */
+  laneTimes?: Record<string, number | null>;
   createdAt?: number;
   winnerScoutId?: string;
 };

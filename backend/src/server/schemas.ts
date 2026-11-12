@@ -99,6 +99,8 @@ export const importPatrolsSchema = z.object({
 
 export const postResultSchema = z.object({
   finishOrder: z.array(z.string().min(1)).min(2),
+  // Each racer's time in seconds from an electronic timer (null for no time), when one was used
+  laneTimes: z.record(z.string().min(1), z.number().positive().max(999).nullable()).optional(),
 });
 
 export const popularVoteSchema = z.object({

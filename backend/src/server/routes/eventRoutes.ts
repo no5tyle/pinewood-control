@@ -520,6 +520,11 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
 
       const winnerScoutId = finishOrder[0];
       const loserScoutIds = finishOrder.slice(1);
+      // Timer times, kept only for racers in this heat
+      const laneTimes: Record<string, number | null> = {};
+      for (const [scoutId, seconds] of Object.entries(parsed.data.laneTimes ?? {})) {
+        if (laneSet.has(scoutId)) laneTimes[scoutId] = seconds;
+      }
 
       await prisma.heat.update({
         where: { id: req.params.heatId },
@@ -527,6 +532,7 @@ export function registerEventRoutes(options: { app: Express; prisma: PrismaClien
           finishOrder: JSON.stringify(finishOrder),
           winnerScoutId,
           loserScoutIds: JSON.stringify(loserScoutIds),
+          laneTimes: JSON.stringify(laneTimes),
         },
       });
 

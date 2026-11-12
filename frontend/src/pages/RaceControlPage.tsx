@@ -14,6 +14,12 @@ import { useTimer } from "../hooks/useTimer";
 import type { HeatTiming } from "../shared/pdt";
 import { finishOrderFromTimes, formatSeconds } from "../shared/pdt";
 
+/** The timer's times to save with a heat's result (each racer's time in seconds), if it was used */
+function laneTimesFor(timing: HeatTiming | null): Record<string, number | null> | undefined {
+  if (!timing) return undefined;
+  return Object.fromEntries(timing.placings.map((p) => [p.scoutId, p.seconds]));
+}
+
 export function RaceControlPage() {
   const { eventId } = useParams();
   const { user } = useAuth();
@@ -149,7 +155,7 @@ export function RaceControlPage() {
     try {
       await api(`/events/${event.id}/heats/${currentHeat.id}/result`, {
         method: "POST",
-        body: JSON.stringify({ finishOrder }),
+        body: JSON.stringify({ finishOrder, laneTimes: laneTimesFor(timing) }),
       });
       setFinishOrder([]);
     } catch (err) {
@@ -167,7 +173,7 @@ export function RaceControlPage() {
         if (finishOrder.length !== currentHeat.laneAssignments.length) return;
         await api(`/events/${event.id}/heats/${currentHeat.id}/result`, {
           method: "POST",
-          body: JSON.stringify({ finishOrder }),
+          body: JSON.stringify({ finishOrder, laneTimes: laneTimesFor(timing) }),
         });
         setFinishOrder([]);
         const updated = await api<EventState>(`/events/${event.id}`);
@@ -194,7 +200,7 @@ export function RaceControlPage() {
     },
     onNext: () => void nextFromTimer(),
   });
-  const timerOn = timer.enabled && timer.connected;
+  const timerOn = timer.available && timer.enabled && timer.connected;
   const readyTimer = () => {
     if (currentHeat) void timer.arm(currentHeat.laneAssignments);
   };
@@ -346,14 +352,14 @@ export function RaceControlPage() {
           <button className="secondary-btn" onClick={() => { setShowLateEntrant(true); setLateError(""); }}>
             Add late entrant
           </button>
-          {!timer.enabled ? (
+          {timer.available && !timer.enabled ? (
             <button className="secondary-btn" onClick={() => timer.setEnabled(true)} title="Optional: an electronic timer fills in the finish order">
               Use a timer
             </button>
           ) : null}
         </div>
       </header>
-      {timer.enabled ? (
+      {timer.available && timer.enabled ? (
         <TimerPanel timer={timer} eventLanes={event.lanes} hasHeat={Boolean(currentHeat)} onReady={readyTimer} />
       ) : null}
       <section className="card">

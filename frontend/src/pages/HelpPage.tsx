@@ -42,6 +42,8 @@ export function HelpPage() {
           <li>Each new heat readies the timer, leaving empty lanes out. When the cars are in, the finish order fills itself in with each car's time: check it, then submit.</li>
           <li>Two cars with the same time, or a car with no time (placed last), are flagged so you can check them. Use Undo to change the order.</li>
           <li>A pinewood-time timer's button submits the heat and generates the next one, so a race can run from the track.</li>
+          <li>The times are saved with each heat. The kiosk shows them on the heat winner screen and under the next heat as "Last heat".</li>
+          <li>The timer is only offered on a computer: phones and tablets don't show it, because a timer can't be plugged into them.</li>
         </ul>
       </section>
 

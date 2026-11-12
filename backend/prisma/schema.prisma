@@ -91,6 +91,7 @@ model Heat {
   winnerScout     Scout?   @relation("HeatWinner", fields: [winnerScoutId], references: [id])
   
   loserScoutIds   String   @default("[]") // JSON array of scout IDs
+  laneTimes       String   @default("{}") // JSON object: scout ID -> seconds (null = no time), from an electronic timer
   eliminatedScouts Scout[] @relation("HeatElimination")
 }
 
