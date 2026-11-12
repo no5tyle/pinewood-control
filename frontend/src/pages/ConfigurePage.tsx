@@ -5,6 +5,7 @@ import { useAuth } from "../AuthContext";
 import { api } from "../shared/api";
 import { removeLocalGuestEventId } from "../shared/storage";
 import type { EventState, KioskSessionStatus, ThemeName } from "../shared/types";
+import { AppHeader } from "../components/AppHeader";
 
 export function ConfigurePage() {
   const navigate = useNavigate();
@@ -105,10 +106,11 @@ export function ConfigurePage() {
     }
   };
 
-  if (!session || !event) return <main className="home-page"><p>{error || "Loading setup..."}</p></main>;
+  if (!session || !event) return <main className="home-page"><AppHeader /><p>{error || "Loading setup..."}</p></main>;
 
   return (
     <main className="home-page">
+      <AppHeader />
       <h1>Configure Event</h1>
       <p className="muted">Setup your tournament parameters.</p>
       {event.isGuest && !user ? (

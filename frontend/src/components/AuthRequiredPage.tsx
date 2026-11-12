@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
+import { AppHeader } from "./AppHeader";
 
 export function AuthRequiredPage({ message }: { message?: string }) {
   const { user } = useAuth();
@@ -7,6 +8,7 @@ export function AuthRequiredPage({ message }: { message?: string }) {
 
   return (
     <main className="home-page auth-required-page">
+      <AppHeader />
       <section className="card auth-required-card">
         <h1>Authentication Required</h1>
         <p className="muted">

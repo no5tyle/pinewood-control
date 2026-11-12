@@ -9,6 +9,14 @@ Pinewood Control is a web app for running a Pinewood Derby style race with a **K
 
 Live app: https://pinewood.nostyle.app
 
+## Look
+
+Pinewood Control shares one look with no5tyle's other apps ([Beacon](https://no5tyle.github.io/Beacon/), the [Program Builder](https://no5tyle.github.io/programmer/) and [Snag Calc](https://no5tyle.github.io/snagCalc/)): Apple's system colours and font, rounded cards, capsule buttons, a see-through bar across the top, and dark mode that follows the device. The colours, rounding and font come from the shared stylesheet, https://no5tyle.github.io/shared/no5tyle.css, which `frontend/index.html` links before `src/index.css`.
+
+- **Computer:** the bar shows the app's name, Events, Patrols, Help and Donate, with your account at the right (Log out is in its menu).
+- **Phone:** the bar shows the name and one menu button holding everything.
+- **Kiosk:** the bar shrinks to a small glass capsule in the corner, and the kiosk keeps its own big-screen themes (System, Cubs Australia, BSA).
+
 ## How it’s used
 
 - **Kiosk device** (big screen): open the Kiosk page for the event and display standings/results.

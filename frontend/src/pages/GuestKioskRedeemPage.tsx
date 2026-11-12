@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../shared/api";
 import { kioskSessionStorageKey } from "../shared/storage";
+import { AppHeader } from "../components/AppHeader";
 
 export function GuestKioskRedeemPage() {
   const { token } = useParams();
@@ -21,6 +22,7 @@ export function GuestKioskRedeemPage() {
 
   return (
     <main className="home-page auth-required-page">
+      <AppHeader />
       <section className="card auth-required-card">
         <h1>Opening Guest Kiosk…</h1>
         {error ? <p className="error">{error}</p> : <p className="muted">Please wait.</p>}

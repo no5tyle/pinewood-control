@@ -1,4 +1,5 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { BackendStatusBanner } from "./BackendStatusBanner";
 import { donateOpenEventName, quickStartOpenEventName } from "../shared/events";
@@ -62,55 +63,189 @@ function PatrolIcon() {
   );
 }
 
+/** The app's mark: the car from the favicon on a navy tile, as no5tyle's other apps have */
+function BrandMark() {
+  return (
+    <svg className="brand-mark" viewBox="0 0 512 512" aria-hidden="true">
+      <rect width="512" height="512" rx="120" fill="#052767" />
+      <g transform="translate(51 51) scale(.8)">
+        <path
+          fill="#fff"
+          d="M408.29 262.879a35.125 35.125 0 1 0 35.125 35.125 35.17 35.17 0 0 0-35.125-35.125zm0 62.873a27.736 27.736 0 1 1 27.736-27.737 27.736 27.736 0 0 1-27.736 27.748zm8.876-27.737a8.876 8.876 0 1 1-8.876-8.875 8.876 8.876 0 0 1 8.876 8.875zm-265.538 0a35.125 35.125 0 1 0-35.126 35.126 35.17 35.17 0 0 0 35.126-35.126zm-35.126 27.737a27.736 27.736 0 1 1 27.737-27.737 27.736 27.736 0 0 1-27.737 27.748zm345.452-21.823a53.997 53.997 0 1 0-107.617-5.925 53.665 53.665 0 0 0 5.447 23.61H165.008a53.986 53.986 0 1 0-101.849-15.211C37.542 295.64 21 278.033 21 250.186c0-28.846 86.87-69.418 142.122-71.327v34.094a24.83 24.83 0 0 0 24.83 24.83h47.517a24.774 24.774 0 0 0 24.409-20.758s-1.62-21.668-6.813-25.518l3.407-2.54 24.474 28.08h94.104c63.994-.022 115.95 23.42 115.95 52.266 0 13.314-10.973 25.396-29.046 34.616zm-336.576-5.925a8.876 8.876 0 1 1-8.876-8.876 8.876 8.876 0 0 1 8.876 8.887z"
+        />
+      </g>
+    </svg>
+  );
+}
+
+function MenuIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path fill="currentColor" d="M4 6.5h16v2H4zm0 4.5h16v2H4zm0 4.5h16v2H4z" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M10 4h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-8v-2h8V6h-8V4Zm-1.6 3.6L9.8 9l-2 2H16v2H7.8l2 2-1.4 1.4L4 12l4.4-4.4Z"
+      />
+    </svg>
+  );
+}
+
+/** Up to two letters for the profile button: "Sam Leader" is SL */
+function initialsOf(name: string): string {
+  const parts = name.split(/\s+/).filter(Boolean);
+  return parts
+    .filter((_, i) => i === 0 || i === parts.length - 1)
+    .map((part) => part[0].toUpperCase())
+    .join("");
+}
+
+/*
+  The bar across the top of every page, in the look Pinewood Control shares with no5tyle's other apps.
+  On a computer: the app's name, the pages, and a profile menu at the right with Logout. On a phone:
+  the name and one menu button holding everything. On the kiosk (onRelink given) it shrinks to a small
+  glass capsule in the corner, out of the way of the big screen.
+*/
 export function AppHeader({ onRelink }: { onRelink?: () => void }) {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const kiosk = Boolean(onRelink);
+  const displayName = user ? user.name || user.email : "";
+
+  // Close the menu on moving to another page, or with Escape
+  useEffect(() => setMenuOpen(false), [location.pathname]);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen]);
+
+  const openHelp = () => {
+    setMenuOpen(false);
+    window.dispatchEvent(new Event(quickStartOpenEventName));
+  };
+  const openDonate = () => {
+    setMenuOpen(false);
+    window.dispatchEvent(new Event(donateOpenEventName));
+  };
+
+  const pages = (
+    <>
+      <NavLink to="/events" className="nav-link">
+        <TrophyIcon />
+        <span>Events</span>
+      </NavLink>
+      {user ? (
+        <NavLink to="/patrols" className="nav-link">
+          <PatrolIcon />
+          <span>Patrols</span>
+        </NavLink>
+      ) : null}
+      <button type="button" className="nav-link" onClick={openHelp}>
+        <HelpIcon />
+        <span>Help</span>
+      </button>
+      <button type="button" className="nav-link" onClick={openDonate}>
+        <HeartIcon />
+        <span>Donate</span>
+      </button>
+    </>
+  );
+
   return (
-    <div className="app-header-wrap">
+    <div className={`app-header-wrap ${kiosk ? "kiosk" : ""}`}>
       <header className="app-header">
-        <Link to="/" className="app-brand">Pinewood Control</Link>
+        <Link to="/" className="app-brand" aria-label="Pinewood Control home">
+          <BrandMark />
+          <span className="brand-text">
+            <span className="brand-title">Pinewood Control</span>
+            <span className="brand-sub">Race night for pinewood derbies</span>
+          </span>
+        </Link>
+
+        <nav className="app-nav" aria-label="Main">
+          {pages}
+        </nav>
+
         <div className="app-header-actions">
           {onRelink ? (
-            <button className="profile-btn relink-btn" onClick={onRelink} aria-label="Re-pair device">
-              <span className="profile-icon" aria-hidden="true"><LinkIcon /></span>
+            <button type="button" className="relink-btn" onClick={onRelink} aria-label="Re-pair device">
+              <LinkIcon />
               <span>Re-pair</span>
             </button>
           ) : null}
-          <Link to="/events" className="profile-btn" aria-label="View events">
-            <span className="profile-icon" aria-hidden="true"><TrophyIcon /></span>
-            <span>Events</span>
-          </Link>
-          {user ? (
-            <Link to="/patrols" className="profile-btn" aria-label="Race patrols">
-              <span className="profile-icon" aria-hidden="true"><PatrolIcon /></span>
-              <span>Patrols</span>
+          {!user ? (
+            <Link to="/login" className="login-btn">
+              Log in
             </Link>
           ) : null}
           <button
             type="button"
-            className="profile-btn"
-            aria-label="Help"
-            onClick={() => window.dispatchEvent(new Event(quickStartOpenEventName))}
+            className={`menu-btn ${user ? "has-user" : "no-user"}`}
+            aria-haspopup="true"
+            aria-expanded={menuOpen}
+            aria-label={user ? `Menu: ${displayName}` : "Menu"}
+            onClick={() => setMenuOpen((open) => !open)}
           >
-            <span className="profile-icon" aria-hidden="true"><HelpIcon /></span>
-            <span>Help</span>
+            {user ? (
+              <>
+                <span className="avatar" aria-hidden="true">
+                  {initialsOf(displayName) || "?"}
+                </span>
+                <span className="menu-name">{displayName}</span>
+              </>
+            ) : (
+              <MenuIcon />
+            )}
           </button>
-          <button
-            type="button"
-            className="profile-btn"
-            aria-label="Donate"
-            onClick={() => window.dispatchEvent(new Event(donateOpenEventName))}
-          >
-            <span className="profile-icon" aria-hidden="true"><HeartIcon /></span>
-            <span>Donate</span>
-          </button>
-          {user ? (
-            <div className="user-nav">
-              <span className="user-name">{user.name || user.email}</span>
-              <button className="profile-btn" onClick={logout}>Logout</button>
-            </div>
-          ) : (
-            <Link to="/login" className="profile-btn">Login</Link>
-          )}
+          {menuOpen ? (
+            <>
+              <button type="button" className="menu-backdrop" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+              <div className="app-menu" role="menu">
+                {user ? (
+                  <div className="menu-who">
+                    <strong>{user.name || user.email}</strong>
+                    {user.name ? <span>{user.email}</span> : null}
+                  </div>
+                ) : null}
+                <div className="menu-pages">{pages}</div>
+                {user ? (
+                  <button
+                    type="button"
+                    className="nav-link"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      logout();
+                    }}
+                  >
+                    <LogoutIcon />
+                    <span>Log out</span>
+                  </button>
+                ) : (
+                  <>
+                    <NavLink to="/login" className="nav-link">
+                      <LogoutIcon />
+                      <span>Log in</span>
+                    </NavLink>
+                    <NavLink to="/signup" className="nav-link">
+                      <PatrolIcon />
+                      <span>Sign up</span>
+                    </NavLink>
+                  </>
+                )}
+              </div>
+            </>
+          ) : null}
         </div>
       </header>
       <BackendStatusBanner />

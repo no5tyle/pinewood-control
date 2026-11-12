@@ -130,7 +130,7 @@ export function RacePatrolsPage() {
     <main className="home-page">
       <AppHeader />
       <section className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem" }}>
+        <div className="card-head">
           <div>
             <h1>Race Patrols</h1>
             <p className="muted">Create reusable racer groups you can add to events in one action.</p>

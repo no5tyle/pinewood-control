@@ -7,6 +7,7 @@ import { useEvent } from "../hooks/useEvent";
 import { api, isAuthRequiredError } from "../shared/api";
 import { removeLocalGuestEventId } from "../shared/storage";
 import type { EventState, Scout } from "../shared/types";
+import { AppHeader } from "../components/AppHeader";
 
 export function RaceControlPage() {
   const { eventId } = useParams();
@@ -256,12 +257,13 @@ export function RaceControlPage() {
   if (!eventId) return <Navigate to="/" replace />;
   if (error) {
     if (isAuthRequiredError(error)) return <AuthRequiredPage message={error} />;
-    return <main className="home-page"><p className="error">{error}</p></main>;
+    return <main className="home-page"><AppHeader /><p className="error">{error}</p></main>;
   }
-  if (!event) return <main className="home-page"><p>Loading race control...</p></main>;
+  if (!event) return <main className="home-page"><AppHeader /><p>Loading race control...</p></main>;
 
   return (
     <main className="operator-page">
+      <AppHeader />
       {event.isGuest && !user ? (
         <div className="banner info desktop-only">
           This is a guest event. <Link to="/login">Login</Link> or <Link to="/signup">Signup</Link> to save it to your account.
@@ -359,7 +361,7 @@ export function RaceControlPage() {
         </section>
       ) : null}
       <section className="card">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+        <div className="card-head">
           <h2 style={{ margin: 0 }}>Popular Vote</h2>
           <div className="inline-actions">
             <button className="secondary-btn" onClick={() => void refreshPopularVote()} disabled={popularLoading}>

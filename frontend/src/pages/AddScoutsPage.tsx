@@ -6,6 +6,7 @@ import { AuthRequiredPage } from "../components/AuthRequiredPage";
 import { useEvent } from "../hooks/useEvent";
 import { api, isAuthRequiredError } from "../shared/api";
 import type { EventState, RacePatrol, RacePatrolListResponse } from "../shared/types";
+import { AppHeader } from "../components/AppHeader";
 
 export function AddScoutsPage() {
   const navigate = useNavigate();
@@ -125,12 +126,13 @@ export function AddScoutsPage() {
 
   if (eventError) {
     if (isAuthRequiredError(eventError)) return <AuthRequiredPage message={eventError} />;
-    return <main className="home-page"><p className="error">{eventError}</p></main>;
+    return <main className="home-page"><AppHeader /><p className="error">{eventError}</p></main>;
   }
-  if (!event) return <main className="home-page"><p>Loading racers...</p></main>;
+  if (!event) return <main className="home-page"><AppHeader /><p>Loading racers...</p></main>;
 
   return (
     <main className="home-page">
+      <AppHeader />
       <h1>Add Racers</h1>
       <form className="card" onSubmit={addScout}>
         <h2>Add Racer</h2>
@@ -142,7 +144,7 @@ export function AddScoutsPage() {
 
       {user ? (
         <section className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: "1rem" }}>
+          <div className="card-head">
             <h2>Race Patrols</h2>
             <Link to="/patrols" className="link-btn">Manage patrols</Link>
           </div>

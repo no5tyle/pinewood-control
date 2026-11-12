@@ -238,7 +238,7 @@ export function EventsPage() {
       {!user ? (
         <>
           <section className="card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="card-head">
               <div>
                 <h1>Guest Events (This Device)</h1>
                 <p className="muted">These events are stored locally and can be claimed when you log in.</p>
@@ -296,7 +296,7 @@ export function EventsPage() {
       {user && (
         <>
           <section className="card">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div className="card-head">
               <h1>My Events</h1>
               <div className="inline-actions">
                 <button onClick={createNewEvent}>Create new event</button>

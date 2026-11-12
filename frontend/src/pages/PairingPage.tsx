@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../shared/api";
 import { kioskSessionStorageKey } from "../shared/storage";
 import type { EventState } from "../shared/types";
+import { AppHeader } from "../components/AppHeader";
 
 export function PairingPage() {
   const { qrToken } = useParams();
@@ -61,6 +62,7 @@ export function PairingPage() {
 
   return (
     <main className="home-page">
+      <AppHeader />
       <section className="card">
         <h1>Pair with Kiosk</h1>
         <p>Enter the 6-digit code displayed on the kiosk screen.</p>

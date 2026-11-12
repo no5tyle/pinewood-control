@@ -24,7 +24,7 @@ export function DonateOverlay() {
   if (!open) return null;
 
   return (
-    <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Support Pinewood Controller">
+    <div className="quickstart-overlay" role="dialog" aria-modal="true" aria-label="Support Pinewood Control">
       <section className="card quickstart-card">
         <button className="close-overlay" onClick={close} aria-label="Close" autoFocus>×</button>
         <h2 style={{ margin: 0 }}>Support this project</h2>

@@ -22,7 +22,7 @@ export function PageTitle() {
     else if (path.startsWith("/pair/")) pageName = "Pair Device";
     else if (path.startsWith("/guest-kiosk/")) pageName = "Guest Kiosk";
 
-    document.title = `Pinewood Controller - ${pageName}`;
+    document.title = `Pinewood Control - ${pageName}`;
   }, [location.pathname]);
 
   return null;

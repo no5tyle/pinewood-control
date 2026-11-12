@@ -37,8 +37,9 @@ export function BackendStatusBanner() {
     };
   }, []);
 
-  const supportUrl = typeof (appConfig as any).supportUrl === "string" ? String((appConfig as any).supportUrl) : "";
-  const supportLabel = typeof (appConfig as any).supportLabel === "string" ? String((appConfig as any).supportLabel) : "Contact support";
+  const config = appConfig as { supportUrl?: unknown; supportLabel?: unknown };
+  const supportUrl = typeof config.supportUrl === "string" ? config.supportUrl : "";
+  const supportLabel = typeof config.supportLabel === "string" ? config.supportLabel : "Contact support";
   const url = supportUrl.trim();
 
   if (status !== "offline") return null;
