@@ -28,7 +28,8 @@
   --bronze: #b4642d;
   --bronze-bg: rgba(204, 119, 34, 0.14);
 
-  --appbar-height: 3.75rem;
+  /* The bar's sizes are shared by every no5tyle app (--n5-bar-* in no5tyle.css) */
+  --appbar-height: var(--n5-bar-height);
 
   font-family: var(--font);
   line-height: 1.45;
@@ -364,9 +365,10 @@ input[type="checkbox"] {
 .app-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  min-height: var(--appbar-height);
-  padding: env(safe-area-inset-top) 1.25rem 0;
+  gap: 12px;
+  box-sizing: border-box;
+  height: calc(var(--appbar-height) + env(safe-area-inset-top));
+  padding: env(safe-area-inset-top) var(--n5-bar-pad) 0;
   border-bottom: 0.5px solid var(--border);
   background: var(--bar-bg);
   -webkit-backdrop-filter: var(--bar-filter);
@@ -383,8 +385,8 @@ input[type="checkbox"] {
 }
 
 .brand-mark {
-  width: 36px;
-  height: 36px;
+  width: var(--n5-bar-icon);
+  height: var(--n5-bar-icon);
   flex: none;
   display: block;
 }
@@ -397,7 +399,7 @@ input[type="checkbox"] {
 }
 
 .brand-title {
-  font-size: 1.0625rem;
+  font-size: var(--n5-bar-title-size);
   font-weight: 700;
   letter-spacing: -0.01em;
   white-space: nowrap;
@@ -405,7 +407,7 @@ input[type="checkbox"] {
 
 .brand-sub {
   color: var(--muted);
-  font-size: 0.75rem;
+  font-size: var(--n5-bar-sub-size);
   white-space: nowrap;
 }
 
@@ -597,24 +599,23 @@ input[type="checkbox"] {
 }
 
 /* Phones: the name and one menu button holding everything */
-/* The app switcher at the top left, then the name */
-.app-header > n5-app-switcher {
-  margin-right: -0.25rem;
-}
-
 @media (max-width: 768px) {
+  :root {
+    --appbar-height: var(--n5-bar-height-compact);
+  }
+
   n5-app-switcher {
-    --n5-switch-size: 32px;
+    --n5-switch-size: var(--n5-bar-icon-compact);
   }
 
   .app-header {
-    gap: 0.5rem;
-    padding-inline: 0.75rem;
+    gap: 10px;
+    padding-inline: var(--n5-bar-pad-compact);
   }
 
   .brand-mark {
-    width: 32px;
-    height: 32px;
+    width: var(--n5-bar-icon-compact);
+    height: var(--n5-bar-icon-compact);
   }
 
   .brand-sub,
@@ -628,8 +629,12 @@ input[type="checkbox"] {
     display: inline-flex;
   }
 
-  .menu-btn.has-user {
-    width: 2.5rem;
+  .menu-btn.has-user,
+  .menu-btn.no-user,
+  .relink-btn {
+    width: var(--n5-bar-button-compact);
+    min-height: 0;
+    height: var(--n5-bar-button-compact);
     padding: 0;
     justify-content: center;
   }
@@ -669,6 +674,7 @@ input[type="checkbox"] {
 
 .app-header-wrap.kiosk .app-header {
   gap: 0.35rem;
+  height: auto;
   min-height: 0;
   padding: 0.3rem;
   border: 0;
