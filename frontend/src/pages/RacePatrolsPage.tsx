@@ -8,6 +8,7 @@ import { TrashIcon } from "../components/TrashIcon";
 import { api } from "../shared/api";
 import { CSV_TEMPLATE, racersFromCsv } from "../shared/racerImport";
 import type { RacePatrol, RacePatrolListResponse } from "../shared/types";
+import { confirmAction } from "../shared/confirm";
 
 /** e.g. "12 Nov" */
 const formatDay = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
@@ -160,7 +161,8 @@ export function RacePatrolsPage() {
   };
 
   const deletePatrol = async (id: string) => {
-    if (!window.confirm("Delete this Race Patrol? This cannot be undone.")) return;
+    const name = patrols.find((p) => p.id === id)?.name ?? "this patrol";
+    if (!(await confirmAction({ title: `Delete ${name}?`, message: "Events you've already run keep their racers. This can't be undone.", confirmLabel: "Delete patrol", danger: true }))) return;
     setError("");
     try {
       await api(`/patrols/${id}`, { method: "DELETE" });

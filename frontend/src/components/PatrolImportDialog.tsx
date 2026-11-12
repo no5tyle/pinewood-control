@@ -22,6 +22,7 @@ import {
   type TerrainUnit,
 } from "../shared/terrain";
 import type { RacePatrol, TerrainLink } from "../shared/types";
+import { confirmAction } from "../shared/confirm";
 
 const BRANCH_KEY = "pinewood_terrain_branch";
 
@@ -278,7 +279,16 @@ function Review({
     if (plan.length === 0) return;
     const tooBig = plan.find((p) => p.racers.length > 300);
     if (tooBig) return setError(`${tooBig.name} has ${tooBig.racers.length} racers; a patrol can hold 300.`);
-    if (replaceAll && !window.confirm(`Delete all ${plural(existing.length, "Race Patrol")} and replace them with this file?`)) return;
+    if (
+      replaceAll &&
+      !(await confirmAction({
+        title: `Replace all ${plural(existing.length, "Race Patrol")}?`,
+        message: "They're deleted, including any from Terrain, and this file's patrols take their place.",
+        confirmLabel: "Replace patrols",
+        danger: true,
+      }))
+    )
+      return;
     setSaving(true);
     setError("");
     try {

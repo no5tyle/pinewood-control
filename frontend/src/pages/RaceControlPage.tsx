@@ -8,6 +8,7 @@ import { api, isAuthRequiredError } from "../shared/api";
 import { removeLocalGuestEventId } from "../shared/storage";
 import type { EventState, Scout } from "../shared/types";
 import { AppHeader } from "../components/AppHeader";
+import { confirmAction } from "../shared/confirm";
 
 export function RaceControlPage() {
   const { eventId } = useParams();
@@ -165,7 +166,7 @@ export function RaceControlPage() {
     const scout = scoutById.get(scoutId);
     if (!scout) return;
     if (scout.eliminated) return;
-    if (!window.confirm(`Drop #${scout.carNumber} ${scout.name} from this race?\n\nThey will be ranked based on when they dropped.`)) {
+    if (!(await confirmAction({ title: `Drop #${scout.carNumber} ${scout.name}?`, message: "They stop racing, and are ranked by when they dropped out.", confirmLabel: "Drop racer", danger: true }))) {
       return;
     }
     try {

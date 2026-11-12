@@ -14,6 +14,7 @@ import {
   setStoredGuestAccessUrls,
 } from "../shared/storage";
 import type { EventListResponse, EventState } from "../shared/types";
+import { confirmAction } from "../shared/confirm";
 
 function formatDateTimeMinutes(value: number | null | undefined): string {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "—";
@@ -154,7 +155,8 @@ export function EventsPage() {
   }, [loadGuestEvents, loadEvents]);
 
   const deleteEvent = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this event? This cannot be undone.")) return;
+    const name = events.find((e) => e.id === id)?.name ?? "this event";
+    if (!(await confirmAction({ title: `Delete ${name}?`, message: "Its racers, heats and results go too. This can't be undone.", confirmLabel: "Delete event", danger: true }))) return;
     try {
       await api(`/events/${id}`, { method: "DELETE" });
       void loadEvents();
@@ -191,7 +193,7 @@ export function EventsPage() {
   };
 
   const revokeGuestAccessUrl = async (id: string) => {
-    if (!window.confirm("Disable the Guest Access URL for this event? Any shared links will stop working immediately.")) return;
+    if (!(await confirmAction({ title: "Turn off the guest access link?", message: "Anyone you've shared it with loses access straight away.", confirmLabel: "Turn off link", danger: true }))) return;
     try {
       await api(`/events/${id}/guest-kiosk-link`, { method: "DELETE" });
       setGuestAccessUrls((prev) => {
@@ -206,7 +208,8 @@ export function EventsPage() {
   };
 
   const deleteGuestEvent = async (id: string) => {
-    if (!window.confirm("Delete this guest event from this device? This cannot be undone.")) return;
+    const name = guestEvents.find((e) => e.id === id)?.name ?? "this guest event";
+    if (!(await confirmAction({ title: `Delete ${name}?`, message: "It's removed from this device. This can't be undone.", confirmLabel: "Delete event", danger: true }))) return;
     try {
       await api(`/events/${id}/guest`, { method: "DELETE" });
       removeLocalGuestEventId(id);

@@ -7,6 +7,7 @@ import { useEvent } from "../hooks/useEvent";
 import { api, isAuthRequiredError } from "../shared/api";
 import type { EventState, RacePatrol, RacePatrolListResponse } from "../shared/types";
 import { AppHeader } from "../components/AppHeader";
+import { confirmAction } from "../shared/confirm";
 
 export function AddScoutsPage() {
   const navigate = useNavigate();
@@ -48,7 +49,7 @@ export function AddScoutsPage() {
     if (!eventId) return;
     const scout = event?.scouts.find((s) => s.id === scoutId);
     if (!scout) return;
-    if (!window.confirm(`Remove #${scout.carNumber} ${scout.name} from this event?`)) return;
+    if (!(await confirmAction({ title: `Remove #${scout.carNumber} ${scout.name}?`, message: "They're taken off this event's entry list.", confirmLabel: "Remove racer", danger: true }))) return;
     setError("");
     try {
       await api(`/events/${eventId}/scouts/${scoutId}`, { method: "DELETE" });

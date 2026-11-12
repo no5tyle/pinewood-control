@@ -12,6 +12,7 @@ import { api } from "../shared/api";
 import { describeSetup, THEME_NAMES } from "../shared/raceSetups";
 import type { RaceSetup, ThemeName } from "../shared/types";
 import { TrashIcon } from "../components/TrashIcon";
+import { confirmAction } from "../shared/confirm";
 
 type Draft = Omit<RaceSetup, "id" | "updatedAt"> & { id?: string };
 
@@ -44,7 +45,7 @@ export function RaceSetupsPage() {
   if (!user) return <AuthRequiredPage message="Log in to save race setups." />;
 
   const remove = async (setup: RaceSetup) => {
-    if (!window.confirm(`Delete the race setup "${setup.name}"? Events already set up with it don't change.`)) return;
+    if (!(await confirmAction({ title: `Delete ${setup.name}?`, message: "Events already set up with it don't change.", confirmLabel: "Delete setup", danger: true }))) return;
     try {
       await api(`/race-setups/${setup.id}`, { method: "DELETE" });
       await load();

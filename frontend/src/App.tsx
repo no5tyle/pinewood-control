@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import { ClaimLocalGuestEventsOnAuth } from "./components/ClaimLocalGuestEventsOnAuth";
+import { ConfirmHost } from "./components/ConfirmHost";
 import { KioskSessionRefresher } from "./components/KioskSessionRefresher";
 import { PageTitle } from "./components/PageTitle";
 import { QuickStartOverlay } from "./components/QuickStartOverlay";
@@ -27,6 +28,7 @@ export default function App() {
         <KioskSessionRefresher />
         <PageTitle />
         <QuickStartOverlay />
+        <ConfirmHost />
         <Routes>
           <Route path="/" element={<KioskBootPage />} />
           <Route path="/help" element={<HelpPage />} />
