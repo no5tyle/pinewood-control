@@ -129,6 +129,10 @@ Environment variables:
 - `VITE_API_ORIGIN`: set to your backend origin (e.g. `https://api.yourdomain.example`)
 - `VITE_QR_PREFIX` (optional): if you want QR codes to always use a specific public domain
 
+### Planned: one server, automatic deploys, a new domain
+
+See [docs/deployment-plan.md](docs/deployment-plan.md) for the plan to run everything from one `docker compose` stack, deploy `main` automatically from GitHub Actions, and move to a new domain.
+
 ### Reverse proxy / SSL
 
 Put the backend behind your reverse proxy of choice (Caddy/Nginx/Traefik) and serve the frontend from static hosting. Ensure:
