@@ -31,6 +31,21 @@ export function HelpPage() {
       </section>
 
       <section className="card">
+        <h2>Electronic Timer (optional)</h2>
+        <p className="muted">
+          A PDT-compatible timer, such as <a href="https://github.com/no5tyle/pinewood-time" target="_blank" rel="noreferrer">pinewood-time</a>,
+          can fill in each heat's finish order from its lane times.
+        </p>
+        <ul className="help-list">
+          <li>On Race Control, press <strong>Use a timer</strong>. It's remembered on that device, and <strong>Turn off the timer add-on</strong> puts things back.</li>
+          <li>Plug the timer into the computer running Race Control and press <strong>Connect timer</strong>. This needs Chrome or Edge on a computer; phones and Safari can't use serial ports. After the first time it reconnects by itself.</li>
+          <li>Each new heat readies the timer, leaving empty lanes out. When the cars are in, the finish order fills itself in with each car's time: check it, then submit.</li>
+          <li>Two cars with the same time, or a car with no time (placed last), are flagged so you can check them. Use Undo to change the order.</li>
+          <li>A pinewood-time timer's button submits the heat and generates the next one, so a race can run from the track.</li>
+        </ul>
+      </section>
+
+      <section className="card">
         <h2>How Matchups Are Made</h2>
         <ul className="help-list">
           <li>The system only generates heats when there are at least 2 non-eliminated racers available.</li>

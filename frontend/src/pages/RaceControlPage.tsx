@@ -9,6 +9,10 @@ import { removeLocalGuestEventId } from "../shared/storage";
 import type { EventState, Scout } from "../shared/types";
 import { AppHeader } from "../components/AppHeader";
 import { confirmAction } from "../shared/confirm";
+import { TimerPanel } from "../components/TimerPanel";
+import { useTimer } from "../hooks/useTimer";
+import type { HeatTiming } from "../shared/pdt";
+import { finishOrderFromTimes, formatSeconds } from "../shared/pdt";
 
 export function RaceControlPage() {
   const { eventId } = useParams();
@@ -39,9 +43,13 @@ export function RaceControlPage() {
   const [popularSubmitting, setPopularSubmitting] = useState(false);
   const [lastVotedScoutId, setLastVotedScoutId] = useState<string | null>(null);
   const voteFeedbackTimerRef = useRef<number | null>(null);
+  // The electronic timer add-on: the times it reported for this heat, if it's in use
+  const [timing, setTiming] = useState<HeatTiming | null>(null);
+  const nextBusyRef = useRef(false);
 
   useEffect(() => {
     setFinishOrder([]);
+    setTiming(null);
   }, [currentHeat?.id]);
 
   useEffect(() => {
@@ -148,6 +156,62 @@ export function RaceControlPage() {
       setSubmitError((err as Error).message);
     }
   };
+
+  // The timer's button (pinewood-time set to "next"): submit the heat if its finish order is complete,
+  // then generate the next one
+  const nextFromTimer = async () => {
+    if (!event || nextBusyRef.current) return;
+    nextBusyRef.current = true;
+    try {
+      if (currentHeat) {
+        if (finishOrder.length !== currentHeat.laneAssignments.length) return;
+        await api(`/events/${event.id}/heats/${currentHeat.id}/result`, {
+          method: "POST",
+          body: JSON.stringify({ finishOrder }),
+        });
+        setFinishOrder([]);
+        const updated = await api<EventState>(`/events/${event.id}`);
+        setEvent(updated);
+        if (updated.isComplete || updated.currentHeatId) return;
+      } else if (event.isComplete) {
+        return;
+      }
+      await api(`/events/${event.id}/next-heat`, { method: "POST" });
+      setSubmitError("");
+    } catch (err) {
+      setSubmitError((err as Error).message);
+    } finally {
+      nextBusyRef.current = false;
+    }
+  };
+
+  const timer = useTimer({
+    onResults: (times) => {
+      if (!currentHeat) return;
+      const t = finishOrderFromTimes(currentHeat.laneAssignments, times);
+      setTiming(t);
+      setFinishOrder(t.finishOrder);
+    },
+    onNext: () => void nextFromTimer(),
+  });
+  const timerOn = timer.enabled && timer.connected;
+  const readyTimer = () => {
+    if (currentHeat) void timer.arm(currentHeat.laneAssignments);
+  };
+
+  // Ready the timer for each new heat
+  const armedHeatRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!timerOn || !currentHeat) return;
+    if (armedHeatRef.current === currentHeat.id) return;
+    armedHeatRef.current = currentHeat.id;
+    void timer.arm(currentHeat.laneAssignments);
+  }, [timerOn, currentHeat, timer]);
+  useEffect(() => {
+    if (!timerOn) armedHeatRef.current = null;
+  }, [timerOn]);
+
+  const timeOf = useMemo(() => new Map((timing?.placings ?? []).map((p) => [p.scoutId, p])), [timing]);
 
   const claimEvent = async () => {
     if (!eventId) return;
@@ -282,8 +346,16 @@ export function RaceControlPage() {
           <button className="secondary-btn" onClick={() => { setShowLateEntrant(true); setLateError(""); }}>
             Add late entrant
           </button>
+          {!timer.enabled ? (
+            <button className="secondary-btn" onClick={() => timer.setEnabled(true)} title="Optional: an electronic timer fills in the finish order">
+              Use a timer
+            </button>
+          ) : null}
         </div>
       </header>
+      {timer.enabled ? (
+        <TimerPanel timer={timer} eventLanes={event.lanes} hasHeat={Boolean(currentHeat)} onReady={readyTimer} />
+      ) : null}
       <section className="card">
         <h2>Current Heat</h2>
         {currentHeat ? (
@@ -299,9 +371,22 @@ export function RaceControlPage() {
                     <li key={`${scoutId}-${index}`}>
                       {ordinal(index + 1)}: <strong>#{scoutById.get(scoutId)?.carNumber}</strong> {scoutById.get(scoutId)?.name}
                       {scoutById.get(scoutId)?.groupName ? <span className="muted"> ({scoutById.get(scoutId)?.groupName})</span> : null}
+                      {timeOf.has(scoutId) ? (
+                        <span className="muted"> · lane {timeOf.get(scoutId)?.lane}, {formatSeconds(timeOf.get(scoutId)?.seconds ?? null)}</span>
+                      ) : null}
                     </li>
                   ))}
                 </ol>
+                {timing && timing.tiedPlaces.length > 0 ? (
+                  <p className="error">
+                    Tie: {timing.tiedPlaces.map((p) => ordinal(p)).join(", ")} place {timing.tiedPlaces.length === 1 ? "has" : "have"} the same time as the racer ahead. Check the order (Undo to change it) before submitting.
+                  </p>
+                ) : null}
+                {timing && timing.missingLanes.length > 0 ? (
+                  <p className="error">
+                    No time for lane {timing.missingLanes.join(", ")}: {timing.missingLanes.length === 1 ? "it's" : "they're"} placed last. Check the order before submitting.
+                  </p>
+                ) : null}
               </div>
             ) : null}
             <div className="stack">

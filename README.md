@@ -6,6 +6,7 @@ Pinewood Control is a web app for running a Pinewood Derby style race with a **K
 - Mid-event late entrants (with a points penalty) and racer drop-outs (recorded in history)
 - Anonymous “Popular Vote” with a controller-triggered reveal + kiosk countdown
 - Signed-in accounts with reusable **Race Patrols** (racer groups) for faster event setup
+- An optional **electronic timer** add-on: a PDT-compatible timer (such as [pinewood-time](https://github.com/no5tyle/pinewood-time)) plugged into the operator's computer fills in each heat's finish order from its lane times (Chrome or Edge, via Web Serial)
 
 Live app: https://pinewood.nostyle.app
 
