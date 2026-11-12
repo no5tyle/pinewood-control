@@ -9,6 +9,22 @@ import { api } from "../shared/api";
 import { CSV_TEMPLATE, racersFromCsv } from "../shared/racerImport";
 import type { RacePatrol, RacePatrolListResponse } from "../shared/types";
 
+/** e.g. "12 Nov" */
+const formatDay = (ms: number) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+
+/** When the Terrain patrols were last synced, if they all were at about the same time */
+function lastSynced(patrols: RacePatrol[]): string {
+  const times = patrols.map((p) => p.syncedAt ?? 0).filter(Boolean);
+  return times.length ? formatDay(Math.min(...times)) : "";
+}
+
+function terrainTitle(p: RacePatrol): string {
+  const t = p.terrain;
+  if (!t) return "Imported from Terrain";
+  const what = t.scope === "unit" ? "the whole unit" : t.scope === "patrol" ? `the ${t.patrol} patrol` : "youth without a patrol";
+  return `Imported from Terrain: ${what} in ${t.unitName}${t.includeLeaders ? ", with leaders" : ""}`;
+}
+
 export function RacePatrolsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -179,6 +195,17 @@ export function RacePatrolsPage() {
           </button>
           <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" hidden onChange={(e) => void readCsv(e)} aria-label="CSV file" />
         </div>
+        {patrols.some((p) => p.terrain) ? (
+          <div className="resync-row">
+            <span className="muted">
+              {patrols.filter((p) => p.terrain).length} patrol{patrols.filter((p) => p.terrain).length === 1 ? "" : "s"} from Terrain
+              {lastSynced(patrols) ? `, last synced ${lastSynced(patrols)}` : ""}.
+            </span>
+            <button type="button" className="secondary-btn" onClick={() => { setNotice(""); setImporting({ kind: "resync" }); }}>
+              Resync with Terrain
+            </button>
+          </div>
+        ) : null}
         <p className="fine-print">
           Spreadsheet columns: Name (or First name and Last name), Group (or Patrol, Six, Den) and Weight.{" "}
           <button type="button" className="text-btn" onClick={downloadTemplate}>Download a template</button>
@@ -196,8 +223,15 @@ export function RacePatrolsPage() {
             <div key={p.id} className="patrol-card">
               <div className="patrol-row">
                 <div className="patrol-row-left">
-                  <h3>{p.name}</h3>
-                  <div className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</div>
+                  <h3>
+                    {p.name}
+                    {p.source === "terrain" ? <span className="source-badge terrain" title={terrainTitle(p)}>Terrain</span> : null}
+                    {p.source === "csv" ? <span className="source-badge">Spreadsheet</span> : null}
+                  </h3>
+                  <div className="muted">
+                    {p.racers.length} racer{p.racers.length === 1 ? "" : "s"}
+                    {p.terrain ? ` · ${p.terrain.unitName}${p.syncedAt ? ` · synced ${formatDay(p.syncedAt)}` : ""}` : ""}
+                  </div>
                 </div>
                 <div className="inline-actions patrol-actions">
                   <button className="secondary-btn" onClick={() => openEdit(p)}>Edit</button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COGNITO_ADDRESS, leaderUnits, racersFromMembers, TerrainLoginError, TerrainSession, unitLabel } from "./terrain";
+import { COGNITO_ADDRESS, leaderUnits, planResync, racersFromMembers, TerrainLoginError, TerrainSession, unitLabel } from "./terrain";
 
 describe("leaderUnits", () => {
   it("lists only the units the member leads, once each", () => {
@@ -65,5 +65,44 @@ describe("TerrainSession", () => {
     const fake = (async () => new Response(JSON.stringify({ __type: "NotAuthorizedException", message: "Incorrect username or password." }), { status: 400 })) as typeof fetch;
     await expect(TerrainSession.login("sa", "1", "wrong", fake)).rejects.toThrow(TerrainLoginError);
     await expect(TerrainSession.login("sa", "1", "wrong", fake)).rejects.toThrow("didn't accept that member number and password");
+  });
+});
+
+describe("planResync", () => {
+  const link = (scope: "unit" | "patrol" | "unpatrolled", patrol: string | null = null) => ({ unitId: "cubs", unitName: "Cubs, 1st Wattle Creek", scope, patrol, includeLeaders: false });
+  const members = [
+    { id: "1", first_name: "Ava", last_name: "Nguyen", unit: { duty: "member" }, patrol: { name: "Red Six" } },
+    { id: "2", first_name: "Liam", last_name: "Smith", unit: { duty: "member" }, patrol: { name: "Red Six" } },
+    { id: "3", first_name: "Zoe", last_name: "Taylor", unit: { duty: "member" }, patrol: { name: "Green Six" } },
+    { id: "4", first_name: "Leo", last_name: "Wilson", unit: { duty: "member" }, patrol: null },
+  ];
+  const patrol = (id: string, terrain: ReturnType<typeof link>, names: string[]) => ({
+    id, name: id, createdAt: 0, source: "terrain" as const, terrain,
+    racers: names.map((name, i) => ({ id: `${id}${i}`, name, groupName: null, weight: name === "Ava Nguyen" ? 141 : null })),
+  });
+
+  it("finds who joined and left each Terrain patrol, keeping weights", () => {
+    const plan = planResync([patrol("Red Six", link("patrol", "Red Six"), ["Ava Nguyen", "Mia Brown"])], "cubs", members);
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].added).toEqual(["Liam Smith"]);
+    expect(plan.updates[0].removed).toEqual(["Mia Brown"]);
+    expect(plan.updates[0].racers).toContainEqual({ name: "Ava Nguyen", groupName: "Red Six", weight: 141 });
+  });
+
+  it("offers Terrain patrols a split import doesn't have yet, and leaves emptied ones alone", () => {
+    const plan = planResync(
+      [patrol("Red Six", link("patrol", "Red Six"), ["Ava Nguyen"]), patrol("Blue Six", link("patrol", "Blue Six"), ["Noah Jones"]), patrol("Others", link("unpatrolled"), ["Leo Wilson"])],
+      "cubs",
+      members,
+    );
+    expect(plan.emptied.map((p) => p.name)).toEqual(["Blue Six"]);
+    expect(plan.newPatrols.map((p) => [p.name, p.racers.map((r) => r.name)])).toEqual([["Green Six", ["Zoe Taylor"]]]);
+    expect(plan.updates.find((u) => u.patrol.name === "Others")?.racers.map((r) => r.name)).toEqual(["Leo Wilson"]);
+  });
+
+  it("refreshes a whole-unit patrol with everyone, and offers nothing new", () => {
+    const plan = planResync([patrol("Cubs", link("unit"), ["Ava Nguyen"])], "cubs", members);
+    expect(plan.updates[0].racers).toHaveLength(4);
+    expect(plan.newPatrols).toEqual([]);
   });
 });

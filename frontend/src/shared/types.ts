@@ -29,10 +29,25 @@ export type RacePatrolRacer = {
   weight?: number | null;
 };
 
+/** What a patrol imported from Terrain fetches again when resynced */
+export type TerrainLink = {
+  unitId: string;
+  unitName: string;
+  /** The whole unit, one Terrain patrol, or the youth without a patrol */
+  scope: "unit" | "patrol" | "unpatrolled";
+  patrol: string | null;
+  includeLeaders: boolean;
+};
+
 export type RacePatrol = {
   id: string;
   name: string;
   createdAt: number;
+  /** Where the racers came from: Terrain, a spreadsheet, or typed in (null) */
+  source?: "terrain" | "csv" | null;
+  terrain?: TerrainLink | null;
+  /** When it was last brought up to date from Terrain */
+  syncedAt?: number | null;
   racers: RacePatrolRacer[];
 };
 

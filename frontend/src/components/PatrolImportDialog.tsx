@@ -1,27 +1,64 @@
 /*
   Brings racers into Race Patrols from a CSV file or from Terrain, then lets the leader choose one patrol
-  for everyone or one per group (patrol, six, den) before saving. A patrol with the same name as an
-  existing one is updated rather than duplicated, so importing again next term refreshes the lists.
+  for everyone or one per group (patrol, six, den) before saving; or resyncs the patrols that came from
+  Terrain with who's in those Terrain patrols now. A patrol with the same name as an existing one is
+  updated rather than duplicated. A CSV upload can also replace every existing patrol.
 
+  Everything is saved in one request (/api/patrols/import), so an import is never left half done.
   Terrain's login lives in this dialog only: the password goes straight to Terrain from the browser and
   the token is dropped when the dialog closes.
 */
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { api } from "../shared/api";
 import { groupCount, planPatrols, type ImportedRacer } from "../shared/racerImport";
-import { BRANCHES, racersFromMembers, TerrainSession, unitLabel, type TerrainMember, type TerrainUnit } from "../shared/terrain";
-import type { RacePatrol } from "../shared/types";
+import {
+  BRANCHES,
+  planResync,
+  racersFromMembers,
+  TerrainSession,
+  unitLabel,
+  type ResyncPlan,
+  type TerrainMember,
+  type TerrainUnit,
+} from "../shared/terrain";
+import type { RacePatrol, TerrainLink } from "../shared/types";
 
 const BRANCH_KEY = "pinewood_terrain_branch";
 
 export type ImportSource =
   | { kind: "csv"; fileName: string; racers: ImportedRacer[]; skipped: string[] }
-  | { kind: "terrain" };
+  | { kind: "terrain" }
+  | { kind: "resync" };
 
 type Step =
   | { at: "signin" }
   | { at: "units"; units: TerrainUnit[] }
-  | { at: "review"; racers: ImportedRacer[]; members?: TerrainMember[]; defaultName: string; skipped: string[] };
+  | { at: "review"; racers: ImportedRacer[]; members?: TerrainMember[]; unit?: TerrainUnit; defaultName: string; skipped: string[] }
+  | { at: "resync"; plans: { unitName: string; plan: ResyncPlan }[]; missing: string[] };
+
+interface SavedPatrol {
+  name: string;
+  racers: ImportedRacer[];
+  existingId?: string;
+  source?: "terrain" | "csv";
+  terrain?: TerrainLink;
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+/** Saves a set of patrols in one go, and says what happened */
+async function savePatrols(patrols: SavedPatrol[], replaceAll = false): Promise<string> {
+  const res = await api<{ created: number; updated: number; deleted: number }>("/patrols/import", {
+    method: "POST",
+    body: JSON.stringify({ replaceAll, patrols }),
+  });
+  const parts = [
+    res.deleted ? `${plural(res.deleted, "old patrol")} removed` : "",
+    res.created ? `${plural(res.created, "new patrol")}` : "",
+    res.updated ? `${res.updated} updated` : "",
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(", ")}.` : "Nothing to change.";
+}
 
 export function PatrolImportDialog({
   source,
@@ -64,12 +101,30 @@ export function PatrolImportDialog({
       const members = await session.current.members(unit.id);
       const racers = racersFromMembers(members);
       if (racers.length === 0) throw new Error("Terrain lists no youth members in that unit.");
-      setStep({ at: "review", racers, members, defaultName: unitLabel(unit), skipped: [] });
+      setStep({ at: "review", racers, members, unit, defaultName: unitLabel(unit), skipped: [] });
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
+  };
+
+  /** For a resync: each unit the Terrain patrols came from, fetched again */
+  const loadResync = async (units: TerrainUnit[]) => {
+    if (!session.current) return;
+    const linked = existing.filter((p) => p.terrain);
+    const unitIds = [...new Set(linked.map((p) => p.terrain!.unitId))];
+    const plans: { unitName: string; plan: ResyncPlan }[] = [];
+    const missing: string[] = [];
+    for (const unitId of unitIds) {
+      const unitName = linked.find((p) => p.terrain!.unitId === unitId)!.terrain!.unitName;
+      if (!units.some((u) => u.id === unitId)) {
+        missing.push(unitName);
+        continue;
+      }
+      plans.push({ unitName, plan: planResync(existing, unitId, await session.current.members(unitId)) });
+    }
+    setStep({ at: "resync", plans, missing });
   };
 
   const signIn = async (e: FormEvent<HTMLFormElement>) => {
@@ -85,6 +140,11 @@ export function PatrolImportDialog({
       session.current = await TerrainSession.login(branch, memberNumber, password);
       window.localStorage.setItem(BRANCH_KEY, branch);
       const units = await session.current.units();
+      if (source.kind === "resync") {
+        await loadResync(units);
+        setBusy(false);
+        return;
+      }
       if (units.length === 0) throw new Error("Terrain doesn't list you as a leader of any unit, so there are no members to import.");
       setBusy(false);
       if (units.length === 1) await loadUnit(units[0]);
@@ -95,7 +155,7 @@ export function PatrolImportDialog({
     }
   };
 
-  const title = source.kind === "csv" ? "Import from a spreadsheet" : "Import from Terrain";
+  const title = source.kind === "csv" ? "Import from a spreadsheet" : source.kind === "resync" ? "Resync with Terrain" : "Import from Terrain";
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-label={title}>
@@ -106,8 +166,9 @@ export function PatrolImportDialog({
         {step.at === "signin" ? (
           <form className="stack" onSubmit={(e) => void signIn(e)}>
             <p className="muted">
-              Log in with your Scouts Australia member number and Terrain password to bring in your unit's youth,
-              grouped by their patrol.
+              {source.kind === "resync"
+                ? "Log in to Terrain to bring your Terrain patrols up to date with who's in them now."
+                : "Log in with your Scouts Australia member number and Terrain password to bring in your unit's youth, grouped by their patrol."}
             </p>
             <label>
               Branch
@@ -156,13 +217,17 @@ export function PatrolImportDialog({
             key={step.defaultName}
             racers={step.racers}
             members={step.members}
+            unit={step.unit}
             defaultName={step.defaultName}
             skipped={step.skipped}
             existing={existing}
+            isCsv={source.kind === "csv"}
             onCancel={onClose}
             onImported={onImported}
           />
         ) : null}
+
+        {step.at === "resync" ? <ResyncReview plans={step.plans} missing={step.missing} onCancel={onClose} onImported={onImported} /> : null}
 
         {error ? <p className="error" role="alert">{error}</p> : null}
       </section>
@@ -173,17 +238,21 @@ export function PatrolImportDialog({
 function Review({
   racers: initialRacers,
   members,
+  unit,
   defaultName,
   skipped,
   existing,
+  isCsv,
   onCancel,
   onImported,
 }: {
   racers: ImportedRacer[];
   members?: TerrainMember[];
+  unit?: TerrainUnit;
   defaultName: string;
   skipped: string[];
   existing: RacePatrol[];
+  isCsv: boolean;
   onCancel: () => void;
   onImported: (message: string) => void;
 }) {
@@ -195,31 +264,40 @@ function Review({
   const groups = groupCount(racers);
   const [split, setSplit] = useState(groups > 1);
   const [name, setName] = useState(defaultName);
+  const [replaceAll, setReplaceAll] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const hasLeaders = (members ?? []).some((m) => m.unit?.duty === "adult_leader");
 
   const plan = useMemo(
-    () => planPatrols(racers, { split, name, existing: existing.map((p) => ({ id: p.id, name: p.name })) }),
-    [racers, split, name, existing],
+    () =>
+      planPatrols(racers, { split, name, existing: replaceAll ? [] : existing.map((p) => ({ id: p.id, name: p.name })) }),
+    [racers, split, name, existing, replaceAll],
   );
-  const updates = plan.filter((p) => p.existingId).length;
-
   const save = async () => {
     if (plan.length === 0) return;
     const tooBig = plan.find((p) => p.racers.length > 300);
     if (tooBig) return setError(`${tooBig.name} has ${tooBig.racers.length} racers; a patrol can hold 300.`);
+    if (replaceAll && !window.confirm(`Delete all ${plural(existing.length, "Race Patrol")} and replace them with this file?`)) return;
     setSaving(true);
     setError("");
     try {
-      for (const patrol of plan) {
-        const body = JSON.stringify({ name: patrol.name, racers: patrol.racers });
-        if (patrol.existingId) await api(`/patrols/${patrol.existingId}`, { method: "PATCH", body });
-        else await api("/patrols", { method: "POST", body });
-      }
-      const made = plan.length - updates;
-      const parts = [made ? `${made} new patrol${made === 1 ? "" : "s"}` : "", updates ? `${updates} updated` : ""].filter(Boolean);
-      onImported(`Imported ${racers.length} racer${racers.length === 1 ? "" : "s"}: ${parts.join(", ")}.`);
+      const patrols: SavedPatrol[] = plan.map((p) => ({
+        name: p.name,
+        racers: p.racers,
+        existingId: p.existingId,
+        source: unit ? "terrain" : "csv",
+        terrain: unit
+          ? {
+              unitId: unit.id,
+              unitName: unitLabel(unit),
+              scope: !split ? "unit" : p.group ? "patrol" : "unpatrolled",
+              patrol: split ? p.group : null,
+              includeLeaders,
+            }
+          : undefined,
+      }));
+      onImported(`Imported ${plural(racers.length, "racer")}: ${await savePatrols(patrols, replaceAll)}`);
     } catch (e) {
       setError((e as Error).message);
       setSaving(false);
@@ -241,8 +319,8 @@ function Review({
   return (
     <div className="stack">
       <p className="muted">
-        {racers.length} racer{racers.length === 1 ? "" : "s"}
-        {groups > 0 ? ` in ${groups} group${groups === 1 ? "" : "s"}` : ""}. Choose how to save them.
+        {plural(racers.length, "racer")}
+        {groups > 0 ? ` in ${plural(groups, "group")}` : ""}. Choose how to save them.
       </p>
 
       <div className="segmented" role="radiogroup" aria-label="How to save them">
@@ -254,7 +332,7 @@ function Review({
         </button>
       </div>
 
-      {!split || plan.some((p) => p.racers.some((r) => !r.groupName)) ? (
+      {!split || plan.some((p) => !p.group) ? (
         <label>
           {split ? "Patrol name for racers without a group" : "Patrol name"}
           <input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
@@ -268,13 +346,26 @@ function Review({
         </label>
       ) : null}
 
+      {isCsv && existing.length > 0 ? (
+        <label className={`check ${replaceAll ? "danger-check" : ""}`}>
+          <input type="checkbox" checked={replaceAll} onChange={(e) => setReplaceAll(e.target.checked)} />
+          Replace all my Race Patrols ({existing.length}) with this file
+        </label>
+      ) : null}
+      {replaceAll ? (
+        <p className="banner warning-banner" role="status">
+          Your {plural(existing.length, "existing patrol")} will be deleted, including any from Terrain. Events you've
+          already run keep their racers.
+        </p>
+      ) : null}
+
       <ul className="import-plan">
         {plan.map((p) => (
           <li key={p.name}>
             <div className="import-plan-head">
               <strong>{p.name}</strong>
               <span className={`status-badge ${p.existingId ? "in-progress" : "setup"}`}>{p.existingId ? "Updates existing" : "New"}</span>
-              <span className="muted">{p.racers.length} racer{p.racers.length === 1 ? "" : "s"}</span>
+              <span className="muted">{plural(p.racers.length, "racer")}</span>
             </div>
             <p className="import-plan-names">{p.racers.map((r) => r.name).join(", ")}</p>
           </li>
@@ -285,8 +376,123 @@ function Review({
 
       <div className="wizard-actions">
         <button type="button" className="secondary-btn" onClick={onCancel} disabled={saving}>Cancel</button>
-        <button type="button" onClick={() => void save()} disabled={saving || !name.trim()}>
-          {saving ? "Saving…" : `Save ${plan.length} patrol${plan.length === 1 ? "" : "s"}`}
+        <button type="button" className={replaceAll ? "danger-solid" : ""} onClick={() => void save()} disabled={saving || !name.trim()}>
+          {saving ? "Saving…" : replaceAll ? `Replace with ${plural(plan.length, "patrol")}` : `Save ${plural(plan.length, "patrol")}`}
+        </button>
+      </div>
+      {error ? <p className="error" role="alert">{error}</p> : null}
+    </div>
+  );
+}
+
+function ResyncReview({
+  plans,
+  missing,
+  onCancel,
+  onImported,
+}: {
+  plans: { unitName: string; plan: ResyncPlan }[];
+  missing: string[];
+  onCancel: () => void;
+  onImported: (message: string) => void;
+}) {
+  const offered = plans.flatMap((p) => p.plan.newPatrols);
+  const [addNew, setAddNew] = useState<Set<string>>(() => new Set(offered.map((n) => `${n.link.unitId}:${n.name}`)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const updates = plans.flatMap((p) => p.plan.updates);
+  const changed = updates.filter((u) => u.added.length || u.removed.length).length;
+
+  const save = async () => {
+    setSaving(true);
+    setError("");
+    try {
+      const patrols: SavedPatrol[] = [
+        ...updates.map((u) => ({ name: u.patrol.name, racers: u.racers, existingId: u.patrol.id, source: "terrain" as const, terrain: u.patrol.terrain! })),
+        ...offered
+          .filter((n) => addNew.has(`${n.link.unitId}:${n.name}`))
+          .map((n) => ({ name: n.name, racers: n.racers, source: "terrain" as const, terrain: n.link })),
+      ];
+      await savePatrols(patrols);
+      const added = patrols.length - updates.length;
+      onImported(
+        `Resynced with Terrain: ${changed ? plural(changed, "patrol") + " changed" : "no changes"}${added ? `, ${plural(added, "new patrol")}` : ""}.`,
+      );
+    } catch (e) {
+      setError((e as Error).message);
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="stack">
+      {missing.length ? (
+        <p className="banner warning-banner" role="status">
+          Terrain doesn't list you as a leader of {missing.join(" or ")} any more, so {missing.length === 1 ? "its" : "their"} patrols
+          are left as they are.
+        </p>
+      ) : null}
+      {plans.length === 0 ? <p>There's nothing to resync.</p> : null}
+      {plans.map(({ unitName, plan }) => (
+        <div key={unitName} className="stack tight">
+          <h3>{unitName}</h3>
+          <ul className="import-plan">
+            {plan.updates.map((u) => (
+              <li key={u.patrol.id}>
+                <div className="import-plan-head">
+                  <strong>{u.patrol.name}</strong>
+                  {u.added.length || u.removed.length ? (
+                    <span className="status-badge in-progress">Changes</span>
+                  ) : (
+                    <span className="status-badge setup">Up to date</span>
+                  )}
+                  <span className="muted">{plural(u.racers.length, "racer")}</span>
+                </div>
+                {u.added.length ? <p className="sync-added">Joined: {u.added.join(", ")}</p> : null}
+                {u.removed.length ? <p className="sync-removed">Left: {u.removed.join(", ")}</p> : null}
+              </li>
+            ))}
+            {plan.emptied.map((p) => (
+              <li key={p.id}>
+                <div className="import-plan-head">
+                  <strong>{p.name}</strong>
+                  <span className="status-badge setup">Left as it is</span>
+                </div>
+                <p className="muted">Nobody is in this Terrain patrol now, so its racers stay as they were.</p>
+              </li>
+            ))}
+            {plan.newPatrols.map((n) => {
+              const key = `${n.link.unitId}:${n.name}`;
+              return (
+                <li key={key}>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={addNew.has(key)}
+                      onChange={(e) =>
+                        setAddNew((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) next.add(key);
+                          else next.delete(key);
+                          return next;
+                        })
+                      }
+                    />
+                    <span>
+                      Add <strong>{n.name}</strong>, new in Terrain ({plural(n.racers.length, "racer")})
+                    </span>
+                  </label>
+                  <p className="import-plan-names">{n.racers.map((r) => r.name).join(", ")}</p>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+      <div className="wizard-actions">
+        <button type="button" className="secondary-btn" onClick={onCancel} disabled={saving}>Cancel</button>
+        <button type="button" onClick={() => void save()} disabled={saving || plans.length === 0}>
+          {saving ? "Saving…" : "Update patrols"}
         </button>
       </div>
       {error ? <p className="error" role="alert">{error}</p> : null}

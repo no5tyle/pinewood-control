@@ -117,6 +117,8 @@ export const CSV_TEMPLATE = "Name,Group,Weight\nAva Nguyen,Kookaburra,141.5\nLia
 
 export interface PlannedPatrol {
   name: string;
+  /** The group its racers share, or null for everyone (or everyone without a group) */
+  group: string | null;
   racers: ImportedRacer[];
   /** An existing Race Patrol with this name, which the import updates rather than duplicating */
   existingId?: string;
@@ -133,15 +135,19 @@ export function planPatrols(
 ): PlannedPatrol[] {
   const fallback = options.name.trim() || "Imported racers";
   const groups = new Map<string, ImportedRacer[]>();
+  const groupOf = new Map<string, string | null>();
   for (const racer of racers) {
-    const key = options.split && racer.groupName ? racer.groupName : fallback;
+    const grouped = options.split && racer.groupName ? racer.groupName : null;
+    const key = grouped ?? fallback;
     groups.set(key, [...(groups.get(key) ?? []), racer]);
+    if (!groupOf.has(key) || grouped === null) groupOf.set(key, grouped);
   }
   const existing = new Map(options.existing.map((p) => [p.name.trim().toLowerCase(), p.id]));
   return [...groups.entries()]
     .sort(([a], [b]) => (a === fallback ? 1 : b === fallback ? -1 : a.localeCompare(b)))
     .map(([name, list]) => ({
       name: name.slice(0, 80),
+      group: groupOf.get(name) ?? null,
       racers: [...list].sort((a, b) => a.name.localeCompare(b.name)),
       existingId: existing.get(name.trim().toLowerCase()),
     }));

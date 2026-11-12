@@ -112,6 +112,18 @@ model RacePatrol {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Where the racers came from: "terrain", "csv", or null when typed in
+  source          String?
+  // For a patrol imported from Terrain, what to fetch again when resyncing: the unit, and either the
+  // whole unit ("unit"), one Terrain patrol ("patrol", named in terrainPatrol) or the youth without a
+  // patrol ("unpatrolled"); and whether the unit's adult leaders were included
+  terrainUnitId   String?
+  terrainUnitName String?
+  terrainScope    String?
+  terrainPatrol   String?
+  terrainLeaders  Boolean   @default(false)
+  syncedAt        DateTime?
+
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

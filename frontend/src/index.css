@@ -676,7 +676,7 @@ input[type="checkbox"] {
   gap: 0.35rem;
   height: auto;
   min-height: 0;
-  padding: 0.3rem;
+  padding: 0.3rem 0.3rem 0.3rem 0.45rem;
   border: 0;
   border-radius: 999px;
   background: var(--glass-sheen), var(--glass-bg);
@@ -710,8 +710,15 @@ input[type="checkbox"] {
 }
 
 .app-header-wrap.kiosk n5-app-switcher {
-  --n5-switch-size: 2.5rem;
+  --n5-switch-size: 2.25rem;
   position: static;
+}
+
+/* Inside the round capsule the switcher sits within its padding, rather than reaching past it as it
+   does in a bar, so its corners aren't cut off */
+.app-header-wrap.kiosk .n5-switch-btn {
+  margin: 0;
+  padding: 2px 2px 2px 2px;
 }
 
 /* The capsule sits at the top right, so the app menu opens leftwards from its right edge */
@@ -2460,4 +2467,61 @@ label.check {
 
 .naming-card {
   position: relative;
+}
+
+/* Where a Race Patrol's racers came from, and resyncing the ones from Terrain */
+.source-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--fill);
+  color: var(--text-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  vertical-align: 0.15em;
+}
+
+.source-badge.terrain {
+  background: var(--tint-fill);
+  color: var(--tint);
+}
+
+.resync-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.9rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.sync-added,
+.sync-removed {
+  font-size: 0.875rem;
+}
+
+.sync-added {
+  color: var(--alert-success-text);
+}
+
+.sync-removed {
+  color: var(--danger);
+}
+
+.warning-banner {
+  background: var(--alert-warning-bg);
+  color: var(--alert-warning-text);
+  text-align: left;
+}
+
+label.danger-check {
+  color: var(--danger);
+}
+
+button.danger-solid {
+  background: var(--danger);
+  color: #fff;
 }

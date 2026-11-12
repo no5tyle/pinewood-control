@@ -59,6 +59,32 @@ export const updateRacePatrolSchema = z.object({
   racers: z.array(racePatrolRacerSchema).min(1).max(300).optional(),
 });
 
+const terrainLinkSchema = z.object({
+  unitId: z.string().min(1).max(100),
+  unitName: z.string().trim().min(1).max(120),
+  scope: z.enum(["unit", "patrol", "unpatrolled"]),
+  patrol: z.string().trim().min(1).max(50).nullable().optional(),
+  includeLeaders: z.boolean().default(false),
+});
+
+/** A whole import (CSV or Terrain) or a Terrain resync, saved at once */
+export const savePatrolSetSchema = z.object({
+  /** Delete every existing Race Patrol first (a CSV upload can replace them all) */
+  replaceAll: z.boolean().default(false),
+  patrols: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1).max(80),
+        racers: z.array(racePatrolRacerSchema).min(1).max(300),
+        /** Update this patrol rather than making a new one */
+        existingId: z.string().min(1).optional(),
+        source: z.enum(["terrain", "csv"]).optional(),
+        terrain: terrainLinkSchema.optional(),
+      }),
+    )
+    .max(100),
+});
+
 export const importPatrolsSchema = z.object({
   patrolIds: z.array(z.string().min(1)).min(1).max(50),
 });

@@ -8,6 +8,7 @@
   The requests are the ones Terrain's own app makes (see Beacon's src/lib/terrain/client.ts).
 */
 import type { ImportedRacer } from "./racerImport";
+import type { RacePatrol, TerrainLink } from "./types";
 
 export const COGNITO_ADDRESS = "https://cognito-idp.ap-southeast-2.amazonaws.com/";
 export const MEMBERS_ADDRESS = "https://members.terrain.scouts.com.au/";
@@ -156,4 +157,68 @@ export class TerrainSession {
     const result = await this.get<{ results?: TerrainMember[] }>(`units/${encodeURIComponent(unitId)}/members`);
     return result.results ?? [];
   }
+}
+
+/** The racers a Terrain-linked patrol holds now, from its unit's current members */
+export function racersForLink(members: TerrainMember[], link: TerrainLink): ImportedRacer[] {
+  const racers = racersFromMembers(members, { includeLeaders: link.includeLeaders });
+  if (link.scope === "unit") return racers;
+  if (link.scope === "unpatrolled") return racers.filter((r) => !r.groupName);
+  return racers.filter((r) => r.groupName === link.patrol);
+}
+
+export interface PatrolResync {
+  patrol: RacePatrol;
+  racers: ImportedRacer[];
+  added: string[];
+  removed: string[];
+}
+
+export interface ResyncPlan {
+  /** Patrols with someone in them now, changed or not */
+  updates: PatrolResync[];
+  /** Patrols nobody in Terrain belongs to any more: left as they are */
+  emptied: RacePatrol[];
+  /** Terrain patrols in a unit imported a patrol at a time that have no Race Patrol yet */
+  newPatrols: { link: TerrainLink; name: string; racers: ImportedRacer[] }[];
+}
+
+const lower = (s: string) => s.trim().toLowerCase();
+
+/** What resyncing a unit's Terrain patrols would change, from the unit's current members */
+export function planResync(patrols: RacePatrol[], unitId: string, members: TerrainMember[]): ResyncPlan {
+  const linked = patrols.filter((p) => p.terrain?.unitId === unitId);
+  const plan: ResyncPlan = { updates: [], emptied: [], newPatrols: [] };
+  for (const patrol of linked) {
+    const racers = racersForLink(members, patrol.terrain!);
+    if (racers.length === 0) {
+      plan.emptied.push(patrol);
+      continue;
+    }
+    const before = new Set(patrol.racers.map((r) => lower(r.name)));
+    const after = new Set(racers.map((r) => lower(r.name)));
+    plan.updates.push({
+      patrol,
+      // Weights aren't in Terrain: keep the ones already entered
+      racers: racers.map((r) => {
+        const weight = patrol.racers.find((x) => lower(x.name) === lower(r.name))?.weight;
+        return typeof weight === "number" ? { ...r, weight } : r;
+      }),
+      added: racers.filter((r) => !before.has(lower(r.name))).map((r) => r.name),
+      removed: patrol.racers.filter((r) => !after.has(lower(r.name))).map((r) => r.name),
+    });
+  }
+  // A unit imported a patrol at a time: any Terrain patrol it doesn't have yet is offered
+  const split = linked.filter((p) => p.terrain!.scope !== "unit");
+  if (split.length > 0) {
+    const sample = split[0].terrain!;
+    const covered = new Set(split.filter((p) => p.terrain!.scope === "patrol").map((p) => p.terrain!.patrol));
+    const all = racersFromMembers(members, { includeLeaders: split.some((p) => p.terrain!.includeLeaders) });
+    const groups = [...new Set(all.map((r) => r.groupName).filter((g): g is string => !!g && !covered.has(g)))].sort();
+    for (const group of groups) {
+      const link: TerrainLink = { unitId, unitName: sample.unitName, scope: "patrol", patrol: group, includeLeaders: sample.includeLeaders };
+      plan.newPatrols.push({ link, name: group, racers: all.filter((r) => r.groupName === group) });
+    }
+  }
+  return plan;
 }
