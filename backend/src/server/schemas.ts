@@ -59,6 +59,14 @@ export const updateRacePatrolSchema = z.object({
   racers: z.array(racePatrolRacerSchema).min(1).max(300).optional(),
 });
 
+export const raceSetupSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  pointLimit: z.number().int().min(1).max(200),
+  lanes: z.number().int().min(2).max(12),
+  theme: z.enum(["system", "scouts-au-cubs", "scouts-america"]).default("system"),
+  weightUnit: z.enum(["g", "oz"]).default("g"),
+});
+
 const terrainLinkSchema = z.object({
   unitId: z.string().min(1).max(100),
   unitName: z.string().trim().min(1).max(120),

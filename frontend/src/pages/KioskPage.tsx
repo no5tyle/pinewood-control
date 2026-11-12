@@ -380,11 +380,13 @@ export function KioskPage() {
               ) : null}
               {qrUrl ? <div className="overlay-note break-all">{qrUrl}</div> : null}
               <p className="overlay-note">Scan QR and enter code to link device</p>
-              <div className="overlay-actions">
-                <a href={`/pair/${qrToken}?code=${pairingCode}`} target="_blank" rel="noopener noreferrer" className="direct-link">
-                  Open operator view on this device
-                </a>
-              </div>
+              {qrToken && pairingCode ? (
+                <div className="overlay-actions">
+                  <a href={`/pair/${qrToken}?code=${pairingCode}`} target="_blank" rel="noopener noreferrer" className="direct-link">
+                    Open operator view on this device
+                  </a>
+                </div>
+              ) : null}
             </div>
           ) : null}
         </>

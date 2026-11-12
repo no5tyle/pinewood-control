@@ -4,7 +4,8 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { api } from "../shared/api";
 import { removeLocalGuestEventId } from "../shared/storage";
-import type { EventState, KioskSessionStatus, ThemeName } from "../shared/types";
+import { describeSetup } from "../shared/raceSetups";
+import type { EventState, KioskSessionStatus, RaceSetup, ThemeName } from "../shared/types";
 import { AppHeader } from "../components/AppHeader";
 
 export function ConfigurePage() {
@@ -19,6 +20,35 @@ export function ConfigurePage() {
   const [weightUnit, setWeightUnit] = useState<"g" | "oz">("g");
   const [error, setError] = useState("");
   const [step, setStep] = useState(1);
+  // Saved race setups (signed in only): picking one sets everything but the racers
+  const [setups, setSetups] = useState<RaceSetup[]>([]);
+  const [choosing, setChoosing] = useState(false);
+  const [saveSetup, setSaveSetup] = useState(false);
+  const [setupName, setSetupName] = useState("");
+
+  useEffect(() => {
+    if (!user) return;
+    api<{ setups: RaceSetup[] }>("/race-setups")
+      .then((res) => {
+        setSetups(res.setups);
+        setChoosing(res.setups.length > 0);
+      })
+      .catch(() => undefined);
+  }, [user]);
+
+  const startFromSetup = async (setup: RaceSetup) => {
+    if (!session?.eventId) return;
+    setError("");
+    try {
+      await api<EventState>(`/events/${session.eventId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ pointLimit: setup.pointLimit, lanes: setup.lanes, theme: setup.theme, weightUnit: setup.weightUnit }),
+      });
+      navigate(`/events/${session.eventId}/scouts`);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  };
 
   useEffect(() => {
     if (!token) return;
@@ -88,6 +118,12 @@ export function ConfigurePage() {
         method: "PATCH",
         body: JSON.stringify({ pointLimit: pointLimitNum, lanes: lanesNum, theme, weightUnit }),
       });
+      if (user && saveSetup && setupName.trim()) {
+        await api("/race-setups", {
+          method: "POST",
+          body: JSON.stringify({ name: setupName.trim(), pointLimit: pointLimitNum, lanes: lanesNum, theme, weightUnit }),
+        });
+      }
       navigate(`/events/${session.eventId}/scouts`);
     } catch (err) {
       setError((err as Error).message);
@@ -123,6 +159,24 @@ export function ConfigurePage() {
           This is a guest event. <button onClick={() => void claimEvent()} className="text-btn">Save to my account</button>
         </div>
       ) : null}
+      {choosing ? (
+        <section className="card">
+          <h2>Start from a saved setup</h2>
+          <p className="muted">Lanes, points and theme are set for you, so all that's left is adding racers.</p>
+          <div className="choice-list">
+            {setups.map((setup) => (
+              <button key={setup.id} type="button" className="setup-choice" onClick={() => void startFromSetup(setup)}>
+                <strong>{setup.name}</strong>
+                <span className="muted">{describeSetup(setup)}</span>
+              </button>
+            ))}
+          </div>
+          <div className="wizard-actions">
+            <button type="button" className="secondary-btn" onClick={() => setChoosing(false)}>Set up from scratch</button>
+          </div>
+        </section>
+      ) : (
+      <>
       <div className="wizard-steps">
         <div className={`wizard-step ${step === 1 ? "active" : step > 1 ? "completed" : ""}`}>1. Theme</div>
         <div className={`wizard-step ${step === 2 ? "active" : step > 2 ? "completed" : ""}`}>2. Lanes</div>
@@ -215,6 +269,20 @@ export function ConfigurePage() {
               How many points before a racer is eliminated?
               <input type="number" min={1} max={200} value={pointLimit} onChange={(e) => setPointLimit(e.target.value)} autoFocus />
             </label>
+            {user ? (
+              <div className="save-setup">
+                <label className="check">
+                  <input type="checkbox" checked={saveSetup} onChange={(e) => setSaveSetup(e.target.checked)} />
+                  Save these settings as a race setup, for next time
+                </label>
+                {saveSetup ? (
+                  <label>
+                    Setup name
+                    <input value={setupName} onChange={(e) => setSetupName(e.target.value)} placeholder="e.g. Cub Derby, 4-lane track" maxLength={80} required />
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
           </>
         ) : null}
 
@@ -225,6 +293,8 @@ export function ConfigurePage() {
           </div>
         ) : null}
       </form>
+      </>
+      )}
       {error ? <p className="error">{error}</p> : null}
     </main>
   );

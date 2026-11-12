@@ -2525,3 +2525,40 @@ button.danger-solid {
   background: var(--danger);
   color: #fff;
 }
+
+/* Race setups */
+.setup-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(10rem, 100%), 1fr));
+  gap: 0.75rem;
+}
+
+.setup-choice {
+  display: grid;
+  justify-items: start;
+  justify-content: stretch;
+  gap: 0.15rem;
+  min-height: 4rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--tint-fill);
+  color: var(--text);
+  text-align: left;
+}
+
+.setup-choice strong {
+  color: var(--tint);
+}
+
+.setup-choice:hover:not(:disabled) {
+  filter: none;
+  background: var(--tint-fill-strong);
+}
+
+.save-setup {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.8rem 1rem;
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}

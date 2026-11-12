@@ -17,6 +17,7 @@ model User {
   passwordHash String
   events       Event[]
   racePatrols  RacePatrol[]
+  raceSetups   RaceSetup[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -128,6 +129,21 @@ model RacePatrol {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   racers    RacePatrolRacer[]
+}
+
+// A saved race setup: everything an event needs apart from its racers, to set up the next one in a tap
+model RaceSetup {
+  id         String   @id @default(cuid())
+  name       String
+  pointLimit Int
+  lanes      Int
+  theme      String   @default("system")
+  weightUnit String   @default("g")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model RacePatrolRacer {

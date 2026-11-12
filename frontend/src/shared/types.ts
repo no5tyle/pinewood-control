@@ -119,3 +119,14 @@ export type RacePatrolListResponse = {
 };
 
 export type ThemeName = "system" | "scouts-au-cubs" | "scouts-america";
+
+/** A saved race setup: everything an event needs except its racers */
+export type RaceSetup = {
+  id: string;
+  name: string;
+  pointLimit: number;
+  lanes: number;
+  theme: ThemeName;
+  weightUnit: "g" | "oz";
+  updatedAt: number;
+};

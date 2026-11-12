@@ -22,6 +22,7 @@ import { purgeExpiredGuestEvents } from "./server/purge.js";
 import { registerSocketHandlers } from "./server/socketHandlers.js";
 import { registerAuthRoutes } from "./server/routes/authRoutes.js";
 import { registerPatrolRoutes } from "./server/routes/patrolRoutes.js";
+import { registerRaceSetupRoutes } from "./server/routes/raceSetupRoutes.js";
 import { registerKioskRoutes } from "./server/routes/kioskRoutes.js";
 import { registerEventRoutes } from "./server/routes/eventRoutes.js";
 import { startPeriodicCleanup } from "./server/cleanup.js";
@@ -67,6 +68,7 @@ io.engine.use(createEngineRateLimiter({ windowMs: 60_000, max: 600, keyPrefix: "
 registerSocketHandlers({ io, prisma, JWT_SECRET });
 registerAuthRoutes({ app, prisma, JWT_SECRET });
 registerPatrolRoutes({ app, prisma });
+registerRaceSetupRoutes({ app, prisma });
 registerKioskRoutes({ app, prisma, io });
 registerEventRoutes({ app, prisma, io });
 
