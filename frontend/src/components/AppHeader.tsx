@@ -41,6 +41,17 @@ function TrophyIcon() {
   );
 }
 
+function SetupsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M4 6h9.2a3 3 0 0 1 5.6 0H20a1 1 0 1 1 0 2h-1.2a3 3 0 0 1-5.6 0H4a1 1 0 0 1 0-2Zm12 1a1 1 0 1 0 0 .01V7ZM4 16h1.2a3 3 0 0 1 5.6 0H20a1 1 0 1 1 0 2h-9.2a3 3 0 0 1-5.6 0H4a1 1 0 1 1 0-2Zm4 1a1 1 0 1 0 0 .01V17Z"
+      />
+    </svg>
+  );
+}
+
 function PatrolIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -134,6 +145,12 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
         <NavLink to="/patrols" className="nav-link">
           <PatrolIcon />
           <span>Patrols</span>
+        </NavLink>
+      ) : null}
+      {user ? (
+        <NavLink to="/setups" className="nav-link">
+          <SetupsIcon />
+          <span>Setups</span>
         </NavLink>
       ) : null}
       <button type="button" className="nav-link" onClick={openHelp}>

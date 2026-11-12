@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { AppHeader } from "../components/AppHeader";
-import { RaceSetupsCard } from "../components/RaceSetups";
 import { TrashIcon } from "../components/TrashIcon";
 import { api, isAuthRequiredError } from "../shared/api";
 import { guestClaimStatusEventName } from "../shared/events";
@@ -368,8 +367,6 @@ export function EventsPage() {
               ))}
             </div>
           </section>
-
-          <RaceSetupsCard />
         </>
       )}
     </main>

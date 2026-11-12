@@ -15,6 +15,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { PairingPage } from "./pages/PairingPage";
 import { RaceControlPage } from "./pages/RaceControlPage";
 import { RacePatrolsPage } from "./pages/RacePatrolsPage";
+import { RaceSetupsPage } from "./pages/RaceSetupsPage";
 import { ResultsPage } from "./pages/ResultsPage";
 import { SignupPage } from "./pages/SignupPage";
 
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/patrols" element={<RacePatrolsPage />} />
+          <Route path="/setups" element={<RaceSetupsPage />} />
           <Route path="/kiosk/:eventId" element={<KioskPage />} />
           <Route path="/guest-kiosk/:token" element={<GuestKioskRedeemPage />} />
           <Route path="/pair/:qrToken" element={<PairingPage />} />

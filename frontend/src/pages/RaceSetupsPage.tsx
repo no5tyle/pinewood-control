@@ -1,33 +1,47 @@
 /*
-  Saved race setups on the Events page: the lanes, elimination points, kiosk theme and weight unit an
-  event uses, kept under a name. Setting up an event from one leaves only the racers to add.
+  Saved race setups, on their own page beside Race Patrols: the lanes, elimination points, kiosk theme
+  and weight unit an event uses, kept under a name. Setting up an event from one leaves only the racers
+  to add.
 */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../AuthContext";
+import { AppHeader } from "../components/AppHeader";
+import { AuthRequiredPage } from "../components/AuthRequiredPage";
 import { api } from "../shared/api";
 import { describeSetup, THEME_NAMES } from "../shared/raceSetups";
 import type { RaceSetup, ThemeName } from "../shared/types";
-import { TrashIcon } from "./TrashIcon";
+import { TrashIcon } from "../components/TrashIcon";
 
 type Draft = Omit<RaceSetup, "id" | "updatedAt"> & { id?: string };
 
 const blank: Draft = { name: "", lanes: 4, pointLimit: 3, theme: "system", weightUnit: "g" };
 
-export function RaceSetupsCard() {
+export function RaceSetupsPage() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
   const [setups, setSetups] = useState<RaceSetup[]>([]);
+  const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Draft | null>(null);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
+    if (!user) return;
+    setLoading(true);
     try {
       setSetups((await api<{ setups: RaceSetup[] }>("/race-setups")).setups);
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  if (!user) return <AuthRequiredPage message="Log in to save race setups." />;
 
   const remove = async (setup: RaceSetup) => {
     if (!window.confirm(`Delete the race setup "${setup.name}"? Events already set up with it don't change.`)) return;
@@ -40,34 +54,51 @@ export function RaceSetupsCard() {
   };
 
   return (
-    <section className="card">
-      <div className="card-head">
-        <div>
-          <h2>Race setups</h2>
-          <p className="muted">Lanes, points and theme saved under a name. Start an event from one and only add the racers.</p>
+    <main className="home-page">
+      <AppHeader />
+      <section className="card">
+        <div className="card-head">
+          <div>
+            <h1>Race Setups</h1>
+            <p className="muted">
+              Lanes, elimination points, kiosk theme and weight unit, saved under a name. Setting up an event from
+              one leaves only the racers to add.
+            </p>
+          </div>
+          <div className="inline-actions">
+            <button onClick={() => setEditing({ ...blank })}>New setup</button>
+            <button className="secondary-btn" onClick={() => navigate("/events")}>Back to events</button>
+          </div>
         </div>
-        <button className="secondary-btn" onClick={() => setEditing({ ...blank })}>New setup</button>
-      </div>
-      {setups.length === 0 ? <p className="muted">No setups yet. Make one here, or save one at the end of setting up an event.</p> : null}
-      <div className="patrol-list">
-        {setups.map((s) => (
-          <div key={s.id} className="patrol-card">
-            <div className="patrol-row">
-              <div className="patrol-row-left">
-                <h3>{s.name}</h3>
-                <div className="muted">{describeSetup(s)}</div>
-              </div>
-              <div className="inline-actions patrol-actions">
-                <button className="secondary-btn" onClick={() => setEditing({ ...s })}>Edit</button>
-                <button className="danger-btn icon-btn" onClick={() => void remove(s)} aria-label={`Delete ${s.name}`} title="Delete">
-                  <TrashIcon />
-                </button>
+        {loading ? <p className="muted">Loading setups…</p> : null}
+        {error ? <p className="error">{error}</p> : null}
+      </section>
+
+      <section className="card">
+        <h2>Your Setups</h2>
+        {setups.length === 0 && !loading ? (
+          <p className="muted">No setups yet. Make one here, or save one at the last step of setting up an event.</p>
+        ) : null}
+        <div className="patrol-list">
+          {setups.map((s) => (
+            <div key={s.id} className="patrol-card">
+              <div className="patrol-row">
+                <div className="patrol-row-left">
+                  <h3>{s.name}</h3>
+                  <div className="muted">{describeSetup(s)}</div>
+                </div>
+                <div className="inline-actions patrol-actions">
+                  <button className="secondary-btn" onClick={() => setEditing({ ...s })}>Edit</button>
+                  <button className="danger-btn icon-btn" onClick={() => void remove(s)} aria-label={`Delete ${s.name}`} title="Delete">
+                    <TrashIcon />
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
-      {error ? <p className="error">{error}</p> : null}
+          ))}
+        </div>
+      </section>
+
       {editing ? (
         <RaceSetupEditor
           draft={editing}
@@ -78,7 +109,7 @@ export function RaceSetupsCard() {
           }}
         />
       ) : null}
-    </section>
+    </main>
   );
 }
 

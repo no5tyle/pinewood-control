@@ -11,6 +11,7 @@ export function PageTitle() {
     if (path === "/") pageName = "Home";
     else if (path === "/events") pageName = "My Events";
     else if (path === "/patrols") pageName = "Race Patrols";
+    else if (path === "/setups") pageName = "Race Setups";
     else if (path === "/help") pageName = "Help";
     else if (path === "/login") pageName = "Login";
     else if (path === "/signup") pageName = "Signup";
