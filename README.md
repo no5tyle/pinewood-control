@@ -165,3 +165,7 @@ Put the backend behind your reverse proxy of choice (Caddy/Nginx/Traefik) and se
 - HTTPS end-to-end
 - WebSocket support for Socket.IO
 - `CORS_ORIGIN` on the backend matches the frontend domain(s)
+
+## Licence
+
+Copyright (c) 2026 no5tyle. Source available under the [PolyForm Strict License 1.0.0](LICENSE.md): you may use it for noncommercial purposes, but not change it, share copies or use it commercially. All other rights reserved.
