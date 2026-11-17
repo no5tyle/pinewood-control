@@ -60,7 +60,7 @@ export type EventDoc = {
   createdAt: number;
   updatedAt: number;
   completedAt: number | null;
-  /** The qstored account (Firebase uid) that owns it; null for an unclaimed guest event */
+  /** The qStored account (Firebase uid) that owns it; null for an unclaimed guest event */
   userId: string | null;
   /** Unclaimed guest events are deleted after a day */
   expireAt: Date | null;

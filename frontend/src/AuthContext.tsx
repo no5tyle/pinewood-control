@@ -1,5 +1,5 @@
 /*
-  The qstored account signed in on this device, if any (see shared/account.ts for signing in).
+  The qStored account signed in on this device, if any (see shared/account.ts for signing in).
 */
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { currentSession, onSessionChange, signOut } from "./shared/account";

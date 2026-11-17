@@ -1,7 +1,7 @@
 /*
   Starts the Pinewood API.
 
-  Data is kept in Firestore and sign-ins are qstored accounts (Firebase Authentication), in the Google
+  Data is kept in Firestore and sign-ins are qStored accounts (Firebase Authentication), in the Google
   Cloud project Cloud Run runs in. With FIRESTORE_EMULATOR_HOST and FIREBASE_AUTH_EMULATOR_HOST set
   (npm run dev), it uses the Firebase emulators instead.
 */

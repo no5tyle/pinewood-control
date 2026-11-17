@@ -1,4 +1,4 @@
-// qstored's app switcher, a custom element from public/qstored-switcher.js
+// qStored's app switcher, a custom element from public/qstored-switcher.js
 import type { DetailedHTMLProps, HTMLAttributes } from "react";
 
 declare module "react" {

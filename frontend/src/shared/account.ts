@@ -1,10 +1,10 @@
 /*
-  qstored accounts: signing in by email link or with Microsoft, through Firebase Authentication's REST
-  API (so no outside script is loaded), the same as qstored's other apps. The account is the same as the
+  qStored accounts: signing in by email link or with Microsoft, through Firebase Authentication's REST
+  API (so no outside script is loaded), the same as qStored's other apps. The account is the same as the
   Program Builder's, signed in separately at this address.
 
   Settings (Vite environment variables, at build time):
-  - VITE_FIREBASE_API_KEY: the qstored Firebase project's web API key
+  - VITE_FIREBASE_API_KEY: the qStored Firebase project's web API key
   - VITE_MICROSOFT_SIGN_IN: "true" to offer Sign in with Microsoft (once it's set up in Firebase)
   - VITE_AUTH_EMULATOR_HOST: the Auth emulator's host:port, for local runs
 */
@@ -235,7 +235,7 @@ export async function finishMicrosoftSignIn(answer: { error: string | null }): P
   } catch (err) {
     throw new ShownError(
       (err as ShownError).code.startsWith("FEDERATED_USER_ID_ALREADY_LINKED")
-        ? "That Microsoft account is already used by another qstored account."
+        ? "That Microsoft account is already used by another qStored account."
         : "Microsoft sign-in didn't finish. Try again, or use an email link.",
     );
   }

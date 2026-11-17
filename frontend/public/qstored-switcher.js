@@ -1,5 +1,5 @@
 /*
-  The qstored app switcher, at the top left of every qstored site, in place of its own icon:
+  The qStored app switcher, at the top left of every qStored site, in place of its own icon:
 
     <link rel="stylesheet" href="css/qstored-switcher.css">
     <script src="js/qstored-switcher.js" defer></script>
@@ -7,8 +7,8 @@
       …the site's own icon, shown until this script runs…
     </qs-app-switcher>
 
-  The button shows the current site's icon; it opens a menu of qstored's apps, with the current one
-  marked. On a site that isn't one of them (the qstored account, current="account") none is marked. The
+  The button shows the current site's icon; it opens a menu of qStored's apps, with the current one
+  marked. On a site that isn't one of them (the qStored account, current="account") none is marked. The
   account itself is linked from each site's own account menu, not from here. Sysadmin-only pages (the internal dashboard)
   are listed only while the element has the `sysadmin` attribute, which the site sets once it knows
   the signed-in account has that role: el.toggleAttribute('sysadmin', true). Listing it hides nothing:
@@ -63,7 +63,7 @@
           ${CHEVRON}
         </button>
         <div class="qs-switch-backdrop" hidden></div>
-        <div class="qs-switch-menu" id="${id}" role="menu" aria-label="qstored apps" hidden></div>`;
+        <div class="qs-switch-menu" id="${id}" role="menu" aria-label="qStored apps" hidden></div>`;
       this.append(parts.content);
       this.button = this.querySelector('.qs-switch-btn');
       this.menu = this.querySelector('.qs-switch-menu');
@@ -90,7 +90,7 @@
         </a>`;
       const sysadmin = this.hasAttribute('sysadmin');
       this.menu.innerHTML = `
-        <div class="qs-switch-head" aria-hidden="true">qstored apps</div>
+        <div class="qs-switch-head" aria-hidden="true">qStored apps</div>
         ${APPS.filter((app) => !app.sysadmin || sysadmin || app.id === current).map((app) => item(app)).join('')}`;
       this.items = [...this.menu.querySelectorAll('.qs-switch-item')];
     }

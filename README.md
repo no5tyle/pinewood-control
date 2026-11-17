@@ -9,11 +9,11 @@ Pinewood Control is a web app for running a Pinewood Derby style race with a **K
 - Saved **Race Setups** (lanes, elimination points, theme, weight unit), so an event is set up in one tap and only needs its racers
 - An optional **electronic timer** add-on: a PDT-compatible timer (such as [pinewood-time](https://github.com/no5tyle/pinewood-time)) plugged into the operator's computer fills in each heat's finish order from its lane times, and the kiosk shows the times. See [Electronic timer](#electronic-timer-optional)
 
-Live app: https://pinewood.qstored.org. Free, always. Accounts are [qstored](https://qstored.org) accounts, the same as the Program Builder's.
+Live app: https://pinewood.qstored.org. Free, always. Accounts are [qStored](https://qstored.org) accounts, the same as the Program Builder's.
 
 ## Look
 
-Pinewood Control shares one look with qstored's other apps: Apple's system colours and font, rounded cards, capsule buttons, a see-through bar across the top, and dark mode that follows the device. The colours, rounding and font are in `frontend/src/base.css` (a copy of no5tyle's shared stylesheet), before `src/index.css`. The qstored app switcher at the top left is `frontend/public/qstored-switcher.js`, the same file as in qstored's other apps.
+Pinewood Control shares one look with qStored's other apps: Apple's system colours and font, rounded cards, capsule buttons, a see-through bar across the top, and dark mode that follows the device. The colours, rounding and font are in `frontend/src/base.css` (a copy of no5tyle's shared stylesheet), before `src/index.css`. The qStored app switcher at the top left is `frontend/public/qstored-switcher.js`, the same file as in qStored's other apps.
 
 - **Computer:** the bar shows the app's name, Events, Patrols, Setups and Help, with your account at the right (Sign out is in its menu).
 - **Phone:** the bar shows the name and one menu button holding everything.
@@ -54,7 +54,7 @@ How it works: the browser talks to the timer over the [Web Serial API](https://d
 - Socket.IO client
 - QR tools: `qrcode`, `html5-qrcode`
 - Web Serial (Chrome and Edge) for the optional electronic timer
-- Sign-in with qstored accounts (email link, or Microsoft), through Firebase Authentication's REST API: `src/shared/account.ts`
+- Sign-in with qStored accounts (email link, or Microsoft), through Firebase Authentication's REST API: `src/shared/account.ts`
 
 **Backend** (`backend/`, on Cloud Run as `pinewood-api`)
 - Node.js 22, Express 5, Socket.IO, Zod
@@ -63,7 +63,7 @@ How it works: the browser talks to the timer over the [Web Serial API](https://d
 
 ## How the data is kept
 
-Everything is in the qstored Google Cloud project's Firestore database, in collections starting `pinewood`:
+Everything is in the qStored Google Cloud project's Firestore database, in collections starting `pinewood`:
 
 - **`pinewoodEvents`**: one document per event, holding its racers, heats and history, so a result or a new heat is one atomic change and a live screen gets the whole event in one read.
 - **`pinewoodVotes`**, **`pinewoodPatrols`** (with their racers), **`pinewoodSetups`**.
@@ -71,7 +71,7 @@ Everything is in the qstored Google Cloud project's Firestore database, in colle
 
 Short-lived records and unclaimed guest events carry an `expireAt` time, and Firestore's TTL policy deletes them (guest events after 24 hours, kiosk sessions after 3 hours, pairing codes after 2 minutes, guest kiosk links after 7 days). Firestore can take up to a day to do so, so the API checks the times itself too. The TTL policies and index settings are in [programmer-api's `firestore.indexes.json`](https://github.com/no5tyle/programmer-api/blob/main/firestore.indexes.json), which owns the database's configuration.
 
-`backend/src/server/store/db.ts` is the small interface the routes use, with a Firestore version and an in-memory one for tests. An event's owner is its qstored account's Firebase uid.
+`backend/src/server/store/db.ts` is the small interface the routes use, with a Firestore version and an in-memory one for tests. An event's owner is its qStored account's Firebase uid.
 
 ## Local development
 
@@ -99,7 +99,7 @@ On every push and pull request, GitHub Actions (`.github/workflows/deploy.yml`) 
 
 ### One-time setup
 
-In the qstored production project (`PROJECT` below), in `australia-southeast1`:
+In the qStored production project (`PROJECT` below), in `australia-southeast1`:
 
 1. **The API's account.** Make a service account for it with **Cloud Datastore User** (Firestore) and nothing else:
 
@@ -128,7 +128,7 @@ In the qstored production project (`PROJECT` below), in `australia-southeast1`:
 
 5. **Expiry.** Deploy the Firestore settings from programmer-api (`firebase deploy --only firestore --project PROJECT`), which turns on the `expireAt` TTL policies.
 
-6. **Deploys from GitHub.** Use the deploy service account the other qstored repos use (`internal-deploy`), with a Workload Identity provider for `no5tyle/pinewood-control` the same way as theirs. It needs **Artifact Registry Writer**, **Cloud Run Admin**, **Firebase Hosting Admin**, and **Service Account User** on `pinewood-api@PROJECT.iam.gserviceaccount.com`:
+6. **Deploys from GitHub.** Use the deploy service account the other qStored repos use (`internal-deploy`), with a Workload Identity provider for `no5tyle/pinewood-control` the same way as theirs. It needs **Artifact Registry Writer**, **Cloud Run Admin**, **Firebase Hosting Admin**, and **Service Account User** on `pinewood-api@PROJECT.iam.gserviceaccount.com`:
 
    ```bash
    gcloud iam service-accounts add-iam-policy-binding pinewood-api@PROJECT.iam.gserviceaccount.com \
@@ -143,12 +143,12 @@ In the qstored production project (`PROJECT` below), in `australia-southeast1`:
    | `WIF_PROVIDER` | the Workload Identity provider's full name |
    | `DEPLOY_SA` | the deploy service account's email |
    | `API_ORIGIN` | the API's address, from step 2 |
-   | `FIREBASE_API_KEY` | the project's web API key (the same as the other qstored sites') |
+   | `FIREBASE_API_KEY` | the project's web API key (the same as the other qStored sites') |
    | `MICROSOFT_SIGN_IN` | `true` to offer Sign in with Microsoft |
 
    The deploys are skipped until `PROJECT` is set. Push to `main` (or re-run the workflow) to deploy.
 
-8. **The old address.** Once pinewood.qstored.org works, switch off the old server and database, and point pinewood.nostyle.app at the new address (a redirect at its DNS or host) or remove it. Accounts and events on the old server aren't carried over: leaders sign in with a qstored account and set up their Race Patrols again.
+8. **The old address.** Once pinewood.qstored.org works, switch off the old server and database, and point pinewood.nostyle.app at the new address (a redirect at its DNS or host) or remove it. Accounts and events on the old server aren't carried over: leaders sign in with a qStored account and set up their Race Patrols again.
 
 ### What it costs
 

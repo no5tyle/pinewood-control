@@ -1,5 +1,5 @@
 /*
-  The qstored app switcher (js/qstored-switcher.js). It uses the page's own colours where the page has
+  The qStored app switcher (js/qstored-switcher.js). It uses the page's own colours where the page has
   the shared ones (no5tyle.css: --surface, --text, --muted, --hover, --border, --tint), and its own otherwise.
   The same file is in programmer, qstored-internal and qstored-account. Change all three together.
 */

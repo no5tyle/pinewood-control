@@ -1,5 +1,5 @@
 /*
-  Signing in with a qstored account: with Microsoft, or by a link sent by email. Sign-in links and
+  Signing in with a qStored account: with Microsoft, or by a link sent by email. Sign-in links and
   Microsoft both come back to this page, which finishes signing in.
 */
 import type { FormEvent } from "react";
@@ -138,7 +138,7 @@ export function LoginPage() {
               {microsoftSignInOffered
                 ? "Sign in with your Microsoft account, or get a link to sign in by email."
                 : "We'll email you a link to sign in."}{" "}
-              One qstored account keeps your events and Race Patrols on any device.
+              One qStored account keeps your events and Race Patrols on any device.
             </p>
             {notice ? <p role="status">{notice}</p> : null}
             {microsoftSignInOffered && !notice ? (

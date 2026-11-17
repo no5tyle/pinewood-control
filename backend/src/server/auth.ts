@@ -1,7 +1,7 @@
 /*
   Who is asking, and what they may do with an event.
 
-  - Accounts are qstored accounts: the app sends the Firebase ID token as a Bearer token, and
+  - Accounts are qStored accounts: the app sends the Firebase ID token as a Bearer token, and
     authenticate() puts the account on req.user.
   - An event can be opened by its owner, by anyone while it's an unclaimed guest event, or by a kiosk
     session bound to it (the x-kiosk-token header). A session made from a guest kiosk link can watch
@@ -29,7 +29,7 @@ export class FirebaseTokenAuth implements Auth {
   async verify(token: string): Promise<User | null> {
     try {
       const claims = await this.firebase.verifyIdToken(token);
-      // qstored accounts always have an email (email link or Microsoft).
+      // qStored accounts always have an email (email link or Microsoft).
       return claims.email ? { id: claims.uid, email: claims.email } : null;
     } catch {
       return null;
