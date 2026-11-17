@@ -8,7 +8,8 @@
     </qs-app-switcher>
 
   The button shows the current site's icon; it opens a menu of qStored's apps, with the current one
-  marked. On a site that isn't one of them (the qStored account, current="account") none is marked. The
+  marked. On a site that isn't one of them (the qStored account, current="account", or the group site,
+  current="group") none is marked. The
   account itself is linked from each site's own account menu, not from here. Sysadmin-only pages (the internal dashboard)
   are listed only while the element has the `sysadmin` attribute, which the site sets once it knows
   the signed-in account has that role: el.toggleAttribute('sysadmin', true). Listing it hides nothing:
@@ -17,8 +18,8 @@
   It draws into the page itself (no shadow DOM, no images from elsewhere, no inline styles), so it
   works under each site's strict Content-Security-Policy. Size it with --qs-switch-size (36px).
 
-  The same file is in programmer, qstored-internal, qstored-account, pinewood-control (frontend/public) and
-  qstored-gear (static). Change them all together.
+  The same file is in programmer, qstored-internal, qstored-account, qstored-group, pinewood-control
+  (frontend/public) and qstored-gear (static). Change them all together.
   To add an app, add it to APPS below.
 */
 (() => {
@@ -30,6 +31,7 @@
     gear: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#5b4a2e"/><path d="M8 13 16 8l8 5v10H8zM12 23v-5h8v5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>',
     programmer: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#052767"/><path d="M8 10h16M8 16h16M8 22h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>',
     internal: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#b42318"/><path d="M16 7.5 9 10.5v5c0 4.4 3 7.9 7 9 4-1.1 7-4.6 7-9v-5z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>',
+    group: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2c6e49"/><circle cx="12" cy="12" r="3.5" fill="none" stroke="#fff" stroke-width="2"/><circle cx="21" cy="13" r="3" fill="none" stroke="#fff" stroke-width="2"/><path d="M5.5 24a6.5 6.5 0 0 1 13 0M17 24a5 5 0 0 1 9.5-2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>',
     account: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#3a3a3c"/><circle cx="16" cy="12.5" r="4.5" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M8.5 24.5a7.5 7.5 0 0 1 15 0" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>',
   };
 
