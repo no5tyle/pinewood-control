@@ -128,7 +128,7 @@ In the qStored production project (`PROJECT` below), in `australia-southeast1`:
 
 5. **Expiry.** Deploy the Firestore settings from programmer-api (`firebase deploy --only firestore --project PROJECT`), which turns on the `expireAt` TTL policies.
 
-6. **Deploys from GitHub.** Use the deploy service account the other qStored repos use (`internal-deploy`), with a Workload Identity provider for `no5tyle/pinewood-control` the same way as theirs. It needs **Artifact Registry Writer**, **Cloud Run Admin**, **Firebase Hosting Admin**, and **Service Account User** on `pinewood-api@PROJECT.iam.gserviceaccount.com`:
+6. **Deploys from GitHub.** Use the deploy service account the other qStored repos use (`github-deploy@PROJECT.iam.gserviceaccount.com`), with a Workload Identity provider for `no5tyle/pinewood-control` the same way as theirs. It needs **Artifact Registry Writer**, **Cloud Run Admin**, **Firebase Hosting Admin**, and **Service Account User** on `pinewood-api@PROJECT.iam.gserviceaccount.com`:
 
    ```bash
    gcloud iam service-accounts add-iam-policy-binding pinewood-api@PROJECT.iam.gserviceaccount.com \
