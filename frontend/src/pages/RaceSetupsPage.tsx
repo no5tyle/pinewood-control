@@ -42,7 +42,7 @@ export function RaceSetupsPage() {
     void load();
   }, [load]);
 
-  if (!user) return <AuthRequiredPage message="Log in to save race setups." />;
+  if (!user) return <AuthRequiredPage message="Sign in to save race setups." />;
 
   const remove = async (setup: RaceSetup) => {
     if (!(await confirmAction({ title: `Delete ${setup.name}?`, message: "Events already set up with it don't change.", confirmLabel: "Delete setup", danger: true }))) return;

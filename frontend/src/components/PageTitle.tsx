@@ -13,8 +13,7 @@ export function PageTitle() {
     else if (path === "/patrols") pageName = "Race Patrols";
     else if (path === "/setups") pageName = "Race Setups";
     else if (path === "/help") pageName = "Help";
-    else if (path === "/login") pageName = "Login";
-    else if (path === "/signup") pageName = "Signup";
+    else if (path === "/login") pageName = "Sign in";
     else if (path.startsWith("/kiosk/")) pageName = "Kiosk";
     else if (path.startsWith("/control/")) pageName = "Controller";
     else if (path.startsWith("/configure/")) pageName = "Configure";

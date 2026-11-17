@@ -38,10 +38,10 @@ export function KioskBootPage() {
           <button onClick={startKiosk} disabled={loading}>
             {loading ? "Starting…" : "Start a guest event"}
           </button>
-          <Link to="/login" className="secondary-link">Log in</Link>
+          <Link to="/login" className="secondary-link">Sign in</Link>
         </div>
         <p className="fine-print">
-          Guest events belong to this device and are deleted after 24 hours. <Link to="/signup">Create an account</Link>{" "}
+          Guest events belong to this device and are deleted after 24 hours. <Link to="/login">Sign in</Link>{" "}
           to keep your events and reuse Race Patrols.
         </p>
       </section>

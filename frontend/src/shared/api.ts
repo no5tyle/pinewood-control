@@ -1,3 +1,5 @@
+import { idToken } from "./account";
+
 export function getApiOrigin(): string {
   const value = import.meta.env.VITE_API_ORIGIN as string | undefined;
   if (!value) return "";
@@ -13,7 +15,7 @@ export function isAuthRequiredError(message: string): boolean {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = localStorage.getItem("auth_token");
+  const token = await idToken();
   const kioskToken = localStorage.getItem("pinewood_kiosk_session");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",

@@ -2683,3 +2683,15 @@ button.danger-solid {
   color: var(--kiosk-text);
 }
 .kiosk-last-heat .kiosk-heat-times li { font-size: 1.15rem; }
+
+.microsoft-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-bottom: 1rem;
+  background: var(--surface, #fff);
+  color: var(--text, inherit);
+  border: 1px solid var(--border, rgba(60, 60, 67, 0.29));
+}

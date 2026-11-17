@@ -1,4 +1,4 @@
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./AuthContext";
 import { ClaimLocalGuestEventsOnAuth } from "./components/ClaimLocalGuestEventsOnAuth";
 import { ConfirmHost } from "./components/ConfirmHost";
@@ -18,7 +18,6 @@ import { RaceControlPage } from "./pages/RaceControlPage";
 import { RacePatrolsPage } from "./pages/RacePatrolsPage";
 import { RaceSetupsPage } from "./pages/RaceSetupsPage";
 import { ResultsPage } from "./pages/ResultsPage";
-import { SignupPage } from "./pages/SignupPage";
 
 export default function App() {
   return (
@@ -33,7 +32,7 @@ export default function App() {
           <Route path="/" element={<KioskBootPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/signup" element={<Navigate to="/login" replace />} />
           <Route path="/events" element={<EventsPage />} />
           <Route path="/patrols" element={<RacePatrolsPage />} />
           <Route path="/setups" element={<RaceSetupsPage />} />

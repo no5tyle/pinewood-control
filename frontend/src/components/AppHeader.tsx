@@ -187,7 +187,7 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
           ) : null}
           {!user ? (
             <Link to="/login" className="login-btn">
-              Log in
+              Sign in
             </Link>
           ) : null}
           <button
@@ -230,17 +230,13 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
                     }}
                   >
                     <LogoutIcon />
-                    <span>Log out</span>
+                    <span>Sign out</span>
                   </button>
                 ) : (
                   <>
                     <NavLink to="/login" className="nav-link">
                       <LogoutIcon />
-                      <span>Log in</span>
-                    </NavLink>
-                    <NavLink to="/signup" className="nav-link">
-                      <PatrolIcon />
-                      <span>Sign up</span>
+                      <span>Sign in</span>
                     </NavLink>
                   </>
                 )}

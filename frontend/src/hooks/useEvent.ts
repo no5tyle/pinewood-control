@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { idToken } from "../shared/account";
 import { api, isAuthRequiredError } from "../shared/api";
 import { socket } from "../shared/socket";
 import { kioskSessionStorageKey, removeLocalGuestEventId } from "../shared/storage";
@@ -24,9 +25,10 @@ export function useEvent(eventId?: string) {
     fetchEvent();
 
     const subscribe = () => {
-      const authToken = window.localStorage.getItem("auth_token");
-      const kioskToken = window.localStorage.getItem(kioskSessionStorageKey);
-      socket.emit("event:subscribe", { eventId, authToken, kioskToken });
+      void idToken().then((authToken) => {
+        const kioskToken = window.localStorage.getItem(kioskSessionStorageKey);
+        socket.emit("event:subscribe", { eventId, authToken, kioskToken });
+      });
     };
 
     subscribe();

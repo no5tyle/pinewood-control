@@ -14,12 +14,12 @@ export function AuthRequiredPage({ message }: { message?: string }) {
         <p className="muted">
           {user
             ? "This event is owned by a different account, or your access has expired."
-            : "This event is owned by an account. Login to access it if it’s yours, or return to Events."}
+            : "This event is owned by an account. Sign in to access it if it’s yours, or return to Events."}
         </p>
         {message ? <p className="muted">{message}</p> : null}
         <div className="auth-required-actions">
           <button className="secondary-btn" onClick={() => navigate("/")}>Home</button>
-          {!user ? <button onClick={() => navigate("/login")}>Login</button> : null}
+          {!user ? <button onClick={() => navigate("/login")}>Sign in</button> : null}
         </div>
       </section>
     </main>
