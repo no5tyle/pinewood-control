@@ -1,0 +1,112 @@
+# Tests the API (in memory and on the Firestore and Firebase Authentication emulators) and the app on
+# every push and pull request. On main, then deploys the API to Cloud Run (pinewood-api) and the app to
+# Firebase Hosting (pinewood.qstored.org), signing in to Google without stored keys (Workload Identity
+# Federation). The deploys are skipped until the repository's variables are set (Settings → Secrets and
+# variables → Actions → Variables): PROJECT, WIF_PROVIDER, DEPLOY_SA, API_ORIGIN and FIREBASE_API_KEY,
+# and optionally MICROSOFT_SIGN_IN (see the README).
+name: Test and deploy
+
+on:
+  pull_request:
+  push:
+
+env:
+  REGION: australia-southeast1
+  SERVICE: pinewood-api
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('backend/package-lock.json') }}
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test:emulators
+      - run: docker build -t pinewood-api .
+
+  app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  deploy-api:
+    needs: [api, app]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.PROJECT != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency: deploy-api
+    permissions:
+      contents: read
+      id-token: write   # for the keyless sign-in to Google
+    env:
+      IMAGE: australia-southeast1-docker.pkg.dev/${{ vars.PROJECT }}/qstored/pinewood-api:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+      - run: docker build -t "$IMAGE" backend && docker push "$IMAGE"
+      # Only the image changes; the service keeps its settings (instances, affinity, variables, account).
+      - run: gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "${{ vars.PROJECT }}" --quiet
+
+  deploy-app:
+    needs: deploy-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency: deploy-app
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_ORIGIN: ${{ vars.API_ORIGIN }}
+          VITE_FIREBASE_API_KEY: ${{ vars.FIREBASE_API_KEY }}
+          VITE_MICROSOFT_SIGN_IN: ${{ vars.MICROSOFT_SIGN_IN }}
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA }}
+      - run: npx --yes firebase-tools@15 deploy --only hosting --project "${{ vars.PROJECT }}" --non-interactive

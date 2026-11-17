@@ -107,7 +107,7 @@ function initialsOf(name: string): string {
 }
 
 /*
-  The bar across the top of every page, in the look Pinewood Control shares with no5tyle's other apps.
+  The bar across the top of every page, in the look Pinewood Control shares with qstored's other apps.
   On a computer: the app's name, the pages, and a profile menu at the right with Logout. On a phone:
   the name and one menu button holding everything. On the kiosk (onRelink given) it shrinks to a small
   glass capsule in the corner, out of the way of the big screen.
@@ -163,10 +163,10 @@ export function AppHeader({ onRelink }: { onRelink?: () => void }) {
   return (
     <div className={`app-header-wrap ${kiosk ? "kiosk" : ""}`}>
       <header className="app-header">
-        {/* The switcher between no5tyle's apps (no5tyle.github.io/shared/app-switcher.js); the mark shows until it loads */}
-        <n5-app-switcher current="pinewood">
+        {/* The switcher between qstored's apps (public/qstored-switcher.js); the mark shows until it loads */}
+        <qs-app-switcher current="pinewood">
           <BrandMark />
-        </n5-app-switcher>
+        </qs-app-switcher>
         <Link to="/" className="app-brand" aria-label="Pinewood Control home">
           <span className="brand-text">
             <span className="brand-title">Pinewood Control</span>
