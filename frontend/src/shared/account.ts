@@ -1,7 +1,7 @@
 /*
   qStored accounts: signing in by email link or with Microsoft, through Firebase Authentication's REST
-  API (so no outside script is loaded), the same as qStored's other apps. The account is the same as the
-  Program Builder's, signed in separately at this address.
+  API (so no outside script is loaded), the same as qStored's other apps. Signing in here signs in every
+  qStored site, and the other way round (see syncShared).
 
   Settings (Vite environment variables, at build time):
   - VITE_FIREBASE_API_KEY: the qStored Firebase project's web API key
@@ -12,7 +12,7 @@ const apiKey = (import.meta.env.VITE_FIREBASE_API_KEY as string | undefined) ?? 
 const emulatorHost = (import.meta.env.VITE_AUTH_EMULATOR_HOST as string | undefined) ?? "";
 export const microsoftSignInOffered = import.meta.env.VITE_MICROSOFT_SIGN_IN === "true";
 
-export type Session = { uid: string; email: string; idToken: string; refreshToken: string; expiresAt: number };
+export type Session = { uid: string; email: string; idToken: string; refreshToken: string; expiresAt: number; shared?: boolean };
 
 const SESSION_KEY = "qstored.pinewood.session";
 const PENDING_KEY = "qstored.pinewood.pendingEmail"; // the address a link was sent to, from this browser
@@ -49,12 +49,77 @@ export function onSessionChange(listener: () => void) {
 
 export const currentSession = () => session;
 
+/** Signs in (or out, with null) here and on every other qStored site. */
 function setSession(next: Session | null) {
+  keepSession(next ? { ...next, shared: true } : null);
+  if (session) writeShared(session);
+  else clearShared();
+}
+
+/** Changes this site's own copy, and tells the app when it's a different person (or none). */
+function keepSession(next: Session | null) {
   const changed = (next?.uid ?? null) !== (session?.uid ?? null);
   session = next;
   store.set(SESSION_KEY, next);
   if (changed) listeners.forEach((l) => l());
 }
+
+/*
+  One sign-in for every qStored site: signing in on any of them signs you in on all, and signing out on one
+  signs you out of all. Each site's storage is its own, so the sign-in is also kept in a cookie on
+  qstored.org, which every qstored.org site can read: { uid, email, refreshToken }. A site takes it up when
+  it opens, when its tab is shown again, and before it calls the API; each makes its own short-lived token
+  from it. Locally (not on qstored.org) the cookie is this host's only. The same code is in each qStored
+  site; change them together.
+*/
+const SHARED_COOKIE = "qstored_session";
+const SHARED_DAYS = 90; // signed out after this long without opening any qStored site
+
+function sharedAttrs() {
+  const domain = /(^|\.)qstored\.org$/.test(location.hostname) ? "; Domain=qstored.org" : "";
+  return `; Path=/; SameSite=Lax${location.protocol === "https:" ? "; Secure" : ""}${domain}`;
+}
+
+function readShared(): { uid: string; email?: string; refreshToken: string } | null {
+  const m = document.cookie.match(/(?:^|;\s*)qstored_session=([^;]*)/);
+  if (!m) return null;
+  try {
+    const v = JSON.parse(decodeURIComponent(m[1]));
+    return v && typeof v.uid === "string" && typeof v.refreshToken === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeShared(s: Session) {
+  const value = encodeURIComponent(JSON.stringify({ uid: s.uid, email: s.email, refreshToken: s.refreshToken }));
+  document.cookie = `${SHARED_COOKIE}=${value}; Max-Age=${SHARED_DAYS * 86400}${sharedAttrs()}`;
+}
+
+function clearShared() {
+  document.cookie = `${SHARED_COOKIE}=; Max-Age=0${sharedAttrs()}`;
+}
+
+/** Brings this site's sign-in into line with the shared one (signed in or out on another qStored site). */
+export function syncShared() {
+  const shared = readShared();
+  if (!shared) {
+    if (session?.shared) keepSession(null);
+    // Signed in here before sign-ins were shared: share it
+    else if (session) setSession(session);
+    return;
+  }
+  if (session?.uid === shared.uid) {
+    if (session.refreshToken !== shared.refreshToken || !session.shared) keepSession({ ...session, refreshToken: shared.refreshToken, shared: true });
+    return;
+  }
+  keepSession({ uid: shared.uid, email: shared.email ?? "", refreshToken: shared.refreshToken, idToken: "", expiresAt: 0, shared: true });
+}
+
+syncShared();
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncShared();
+});
 
 // Signed in or out in another tab
 window.addEventListener("storage", (e) => {
@@ -148,6 +213,7 @@ export function signOut() {
 
 /** A token the API will accept, renewed when it's about to run out. Null when not signed in. */
 export async function idToken(force = false): Promise<string | null> {
+  syncShared();
   if (!session) return null;
   if (!force && session.expiresAt - Date.now() > 60_000) return session.idToken;
   refreshing ??= (async () => {
