@@ -1,147 +1,91 @@
 /*
-  Authentication + event access control.
+  Who is asking, and what they may do with an event.
 
-  Usage:
-  - server.ts installs authenticate(JWT_SECRET) once, which populates req.user for Bearer tokens.
-  - Routes then call requireAuth for account-only endpoints, or requireEventReadAccess / requireEventWriteAccess
-    to gate event endpoints for guest, owner, or kiosk-session access.
+  - Accounts are qstored accounts: the app sends the Firebase ID token as a Bearer token, and
+    authenticate() puts the account on req.user.
+  - An event can be opened by its owner, by anyone while it's an unclaimed guest event, or by a kiosk
+    session bound to it (the x-kiosk-token header). A session made from a guest kiosk link can watch
+    but not change an account's event.
 */
-import type { Request, Response, NextFunction } from "express";
-import type { PrismaClient } from "@prisma/client";
-import jwt from "jsonwebtoken";
+import type { NextFunction, Request, RequestHandler, Response } from "express";
+import type { Auth as FirebaseAuth } from "firebase-admin/auth";
+import { collections, HttpError, type Db } from "./store/db.js";
+import type { EventDoc, GuestLinkDoc, KioskSessionDoc } from "./store/types.js";
+
+export type User = { id: string; email: string };
 
 export interface AuthRequest extends Request {
-  user?: { id: string; email: string };
+  user?: User;
 }
 
-export function authenticate(JWT_SECRET: string) {
-  return (req: AuthRequest, _res: Response, next: NextFunction) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return next();
-    }
+/** Checks a sign-in token. */
+export interface Auth {
+  verify(token: string): Promise<User | null>;
+}
 
-    const token = authHeader.split(" ")[1];
+export class FirebaseTokenAuth implements Auth {
+  constructor(private readonly firebase: FirebaseAuth) {}
+
+  async verify(token: string): Promise<User | null> {
     try {
-      const payload = jwt.verify(token, JWT_SECRET) as { id: string; email: string };
-      req.user = payload;
-      next();
+      const claims = await this.firebase.verifyIdToken(token);
+      // qstored accounts always have an email (email link or Microsoft).
+      return claims.email ? { id: claims.uid, email: claims.email } : null;
     } catch {
-      next();
+      return null;
     }
+  }
+}
+
+export function authenticate(auth: Auth): RequestHandler {
+  return async (req: AuthRequest, _res: Response, next: NextFunction) => {
+    const header = req.headers.authorization;
+    if (header?.startsWith("Bearer ")) {
+      const user = await auth.verify(header.slice(7));
+      if (user) req.user = user;
+    }
+    next();
   };
 }
 
-export function requireAuth(req: AuthRequest, res: Response, next: NextFunction) {
-  if (!req.user) {
-    return res.status(401).json({ message: "Authentication required" });
-  }
+export const requireAuth: RequestHandler = (req: AuthRequest, res, next) => {
+  if (!req.user) return void res.status(401).json({ message: "Authentication required" });
   next();
+};
+
+export function signedIn(req: AuthRequest): User {
+  if (!req.user) throw new HttpError(401, "Authentication required");
+  return req.user;
 }
 
-export async function canReadEvent(
-  prisma: PrismaClient,
-  req: AuthRequest,
-  event: { id: string; isGuest: boolean; userId: string | null }
-): Promise<boolean> {
+type Access = { userId: string | null; kioskToken: string | null | undefined };
+
+/** Whether this person (or kiosk) may see the event; with `write`, whether they may change it. */
+export async function canAccessEvent(db: Db, who: Access, event: EventDoc, write: boolean): Promise<boolean> {
   if (event.isGuest && !event.userId) return true;
-  if (req.user && event.userId && req.user.id === event.userId) return true;
+  if (who.userId && event.userId === who.userId) return true;
+  if (!who.kioskToken) return false;
 
-  const kioskToken = req.header("x-kiosk-token");
-  if (!kioskToken) return false;
-
-  const session = (await prisma.kioskSession.findUnique({
-    where: { token: kioskToken },
-  })) as any;
-  if (!session) return false;
-  if (Date.now() > session.expiresAt.getTime()) return false;
-  if (session.eventId !== event.id) return false;
+  const session = await db.get<KioskSessionDoc>(collections.kioskSessions, who.kioskToken);
+  const now = Date.now();
+  if (!session || now > session.expiresAt || session.eventId !== event.id) return false;
+  if (write && session.guestKioskLinkId) return false;
 
   if (event.userId) {
-    if (!session.accessExpiresAt) return false;
-    if (Date.now() > session.accessExpiresAt.getTime()) return false;
-
+    if (!session.accessExpiresAt || now > session.accessExpiresAt) return false;
     if (session.guestKioskLinkId) {
-      const link = (await (prisma as any).guestKioskLink.findUnique({
-        where: { id: session.guestKioskLinkId },
-        select: { revokedAt: true, expiresAt: true },
-      })) as { revokedAt: Date | null; expiresAt: Date } | null;
-      if (!link) return false;
-      if (link.revokedAt) return false;
-      if (Date.now() > link.expiresAt.getTime()) return false;
+      const link = await db.get<GuestLinkDoc>(collections.guestLinks, session.guestKioskLinkId);
+      if (!link || link.revokedAt || now > link.expiresAt) return false;
     }
   }
-
   return true;
 }
 
-export async function canWriteEvent(
-  prisma: PrismaClient,
-  req: AuthRequest,
-  event: { id: string; isGuest: boolean; userId: string | null }
-): Promise<boolean> {
-  if (event.isGuest && !event.userId) return true;
-  if (req.user && event.userId && req.user.id === event.userId) return true;
-
-  const kioskToken = req.header("x-kiosk-token");
-  if (!kioskToken) return false;
-
-  const session = (await prisma.kioskSession.findUnique({
-    where: { token: kioskToken },
-  })) as any;
-  if (!session) return false;
-  if (Date.now() > session.expiresAt.getTime()) return false;
-  if (session.eventId !== event.id) return false;
-  if (session.guestKioskLinkId) return false;
-
-  if (event.userId) {
-    if (!session.accessExpiresAt) return false;
-    if (Date.now() > session.accessExpiresAt.getTime()) return false;
-  }
-
-  return true;
-}
-
-export async function requireEventReadAccess(
-  prisma: PrismaClient,
-  req: AuthRequest,
-  res: Response,
-  eventId: string
-): Promise<{ id: string; isGuest: boolean; userId: string | null } | null> {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { id: true, isGuest: true, userId: true },
-  });
-  if (!event) {
-    res.status(404).json({ message: "Event not found" });
-    return null;
-  }
-  const allowed = await canReadEvent(prisma, req, event);
-  if (!allowed) {
-    res.status(403).json({ message: "Authentication required to access this event" });
-    return null;
-  }
-  return event;
-}
-
-export async function requireEventWriteAccess(
-  prisma: PrismaClient,
-  req: AuthRequest,
-  res: Response,
-  eventId: string
-): Promise<{ id: string; isGuest: boolean; userId: string | null } | null> {
-  const event = await prisma.event.findUnique({
-    where: { id: eventId },
-    select: { id: true, isGuest: true, userId: true },
-  });
-  if (!event) {
-    res.status(404).json({ message: "Event not found" });
-    return null;
-  }
-  const allowed = await canWriteEvent(prisma, req, event);
-  if (!allowed) {
-    res.status(403).json({ message: "Authentication required to access this event" });
-    return null;
-  }
+/** Loads the event the request may see (or change), or throws 404/403. */
+export async function eventFor(db: Db, req: AuthRequest, eventId: string, write: boolean): Promise<EventDoc> {
+  const event = await db.get<EventDoc>(collections.events, eventId);
+  if (!event) throw new HttpError(404, "Event not found");
+  const allowed = await canAccessEvent(db, { userId: req.user?.id ?? null, kioskToken: req.header("x-kiosk-token") }, event, write);
+  if (!allowed) throw new HttpError(403, "Authentication required to access this event");
   return event;
 }

@@ -7,61 +7,65 @@
     - PATCH  /api/race-setups/:setupId
     - DELETE /api/race-setups/:setupId
 */
-import type { PrismaClient } from "@prisma/client";
 import type { Express } from "express";
-import express from "express";
-import { requireAuth } from "../auth.js";
+import { nanoid } from "nanoid";
+import { requireAuth, signedIn, type AuthRequest } from "../auth.js";
 import { raceSetupSchema } from "../schemas.js";
+import { collections, HttpError, type Db } from "../store/db.js";
+import type { SetupDoc } from "../store/types.js";
 
-type SetupRow = { id: string; name: string; pointLimit: number; lanes: number; theme: string; weightUnit: string; updatedAt: Date };
+const MAX_SETUPS = 50;
 
-const setupJson = (s: SetupRow) => ({
+const setupJson = (s: SetupDoc) => ({
   id: s.id,
   name: s.name,
   pointLimit: s.pointLimit,
   lanes: s.lanes,
   theme: s.theme,
   weightUnit: s.weightUnit === "oz" ? "oz" : "g",
-  updatedAt: s.updatedAt.getTime(),
+  updatedAt: s.updatedAt,
 });
 
-export function registerRaceSetupRoutes(options: { app: Express; prisma: PrismaClient }) {
-  const { app, prisma } = options;
+export function registerRaceSetupRoutes(options: { app: Express; db: Db }) {
+  const { app, db } = options;
 
-  const owned = async (userId: string, setupId: string) => {
-    const setup = await prisma.raceSetup.findUnique({ where: { id: setupId }, select: { userId: true } });
-    return setup?.userId === userId;
+  const listFor = (userId: string) => db.where<SetupDoc>(collections.setups, "userId", userId);
+  const owned = async (req: AuthRequest) => {
+    const setup = await db.get<SetupDoc>(collections.setups, req.params.setupId as string);
+    if (!setup || setup.userId !== signedIn(req).id) throw new HttpError(404, "Race setup not found");
+    return setup;
   };
 
-  app.get("/api/race-setups", requireAuth as express.RequestHandler, async (req: any, res) => {
-    if (!req.user) return res.status(401).json({ message: "Authentication required" });
-    const setups = await prisma.raceSetup.findMany({ where: { userId: req.user.id }, orderBy: { name: "asc" } });
+  app.get("/api/race-setups", requireAuth, async (req: AuthRequest, res) => {
+    const setups = await listFor(signedIn(req).id);
+    setups.sort((a, b) => a.name.localeCompare(b.name));
     return res.json({ setups: setups.map(setupJson) });
   });
 
-  app.post("/api/race-setups", requireAuth as express.RequestHandler, async (req: any, res) => {
+  app.post("/api/race-setups", requireAuth, async (req: AuthRequest, res) => {
     const parsed = raceSetupSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(parsed.error.flatten());
-    if (!req.user) return res.status(401).json({ message: "Authentication required" });
-    const count = await prisma.raceSetup.count({ where: { userId: req.user.id } });
-    if (count >= 50) return res.status(400).json({ message: "You can keep up to 50 race setups." });
-    const setup = await prisma.raceSetup.create({ data: { ...parsed.data, userId: req.user.id } });
+    const user = signedIn(req);
+    if ((await listFor(user.id)).length >= MAX_SETUPS) throw new HttpError(400, `You can keep up to ${MAX_SETUPS} race setups.`);
+    const now = Date.now();
+    const setup: SetupDoc = { id: nanoid(), userId: user.id, ...parsed.data, createdAt: now, updatedAt: now };
+    await db.set(collections.setups, setup.id, setup);
     return res.status(201).json(setupJson(setup));
   });
 
-  app.patch("/api/race-setups/:setupId", requireAuth as express.RequestHandler, async (req: any, res) => {
+  app.patch("/api/race-setups/:setupId", requireAuth, async (req: AuthRequest, res) => {
     const parsed = raceSetupSchema.partial().safeParse(req.body);
     if (!parsed.success) return res.status(400).json(parsed.error.flatten());
-    if (!req.user) return res.status(401).json({ message: "Authentication required" });
-    if (!(await owned(req.user.id, req.params.setupId))) return res.status(404).json({ message: "Race setup not found" });
-    const setup = await prisma.raceSetup.update({ where: { id: req.params.setupId }, data: parsed.data });
+    const current = await owned(req);
+    const changes = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined));
+    const setup: SetupDoc = { ...current, ...changes, updatedAt: Date.now() };
+    await db.set(collections.setups, setup.id, setup);
     return res.json(setupJson(setup));
   });
 
-  app.delete("/api/race-setups/:setupId", requireAuth as express.RequestHandler, async (req: any, res) => {
-    if (!req.user) return res.status(401).json({ message: "Authentication required" });
-    if (!(await owned(req.user.id, req.params.setupId))) return res.status(404).json({ message: "Race setup not found" });
-    await prisma.raceSetup.delete({ where: { id: req.params.setupId } });
+  app.delete("/api/race-setups/:setupId", requireAuth, async (req: AuthRequest, res) => {
+    const setup = await owned(req);
+    await db.delete(collections.setups, setup.id);
     return res.status(204).send();
   });
 }

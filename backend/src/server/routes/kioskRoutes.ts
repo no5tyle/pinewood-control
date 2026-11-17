@@ -1,24 +1,26 @@
 /*
   Kiosk + pairing routes.
 
-  Usage:
-  - registerKioskRoutes({ app, prisma, io }) is called from server.ts
-  - Provides endpoints used by the kiosk screen and operator pairing flow:
-    - kiosk session creation/lookup/bind
-    - pairing request + pairing confirmation
+  - kiosk sessions: create, look up, refresh, bind to an event, make an event
+  - pairing: the kiosk shows a QR code and a 6-digit code; a phone that scans it and types the code
+    joins the kiosk's session
 */
-import type { PrismaClient } from "@prisma/client";
 import type { Express } from "express";
 import type { Server } from "socket.io";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import type { AuthRequest } from "../auth.js";
 import { kioskAccessTtlMs } from "../config.js";
+import { loadEvent, newEvent, serializeEvent } from "../eventService.js";
 import { createEventSchema } from "../schemas.js";
 import { createRateLimiter, getClientIp } from "../rateLimit.js";
-import { getEventWithDetails, serializeEvent } from "../eventService.js";
+import { collections, HttpError, type Db } from "../store/db.js";
+import type { KioskSessionDoc, PairingDoc } from "../store/types.js";
 
-export function registerKioskRoutes(options: { app: Express; prisma: PrismaClient; io: Server }) {
-  const { app, prisma, io } = options;
+const PAIRING_TTL_MS = 2 * 60_000;
+
+export function registerKioskRoutes(options: { app: Express; db: Db; io: Server }) {
+  const { app, db, io } = options;
 
   const kioskBootstrapLimiter = createRateLimiter({ windowMs: 10 * 60_000, max: 30, keyPrefix: "kiosk-bootstrap" });
   const kioskSessionCreateLimiter = createRateLimiter({ windowMs: 60_000, max: 60, keyPrefix: "kiosk-session-create" });
@@ -34,214 +36,132 @@ export function registerKioskRoutes(options: { app: Express; prisma: PrismaClien
   });
   const kioskPairLimiter = createRateLimiter({ windowMs: 60_000, max: 20, keyPrefix: "kiosk-pair" });
 
+  const saveSession = (session: KioskSessionDoc) =>
+    db.set(collections.kioskSessions, session.token, { ...session, expireAt: new Date(session.expiresAt) });
+
+  const createSession = async () => {
+    const expiresAt = Date.now() + kioskAccessTtlMs;
+    const session: KioskSessionDoc = {
+      token: nanoid(12),
+      expiresAt,
+      accessExpiresAt: null,
+      eventId: null,
+      guestKioskLinkId: null,
+      expireAt: new Date(expiresAt),
+    };
+    await saveSession(session);
+    return { token: session.token, expiresAt };
+  };
+
+  /** The session, or 404. With `live`, 410 (and gone) once expired. */
+  const sessionFor = async (token: string, live = false) => {
+    const session = await db.get<KioskSessionDoc>(collections.kioskSessions, token);
+    if (!session) throw new HttpError(404, "Session not found");
+    if (live && Date.now() > session.expiresAt) {
+      await db.delete(collections.kioskSessions, token);
+      throw new HttpError(410, "Session expired");
+    }
+    return session;
+  };
+
   app.post("/api/kiosk/bootstrap", kioskBootstrapLimiter, async (_req, res) => {
-    const token = nanoid(12);
-    const expiresAt = new Date(Date.now() + kioskAccessTtlMs);
-
-    await prisma.kioskSession.create({
-      data: {
-        token,
-        expiresAt,
-      },
-    });
-
-    return res.status(201).json({
-      token,
-      expiresAt: expiresAt.getTime(),
-    });
+    return res.status(201).json(await createSession());
   });
 
   app.post("/api/kiosk/sessions", kioskSessionCreateLimiter, async (_req, res) => {
-    const token = nanoid(12);
-    const expiresAt = new Date(Date.now() + kioskAccessTtlMs);
-    await prisma.kioskSession.create({
-      data: { token, expiresAt },
-    });
-    return res.status(201).json({ token, expiresAt: expiresAt.getTime() });
+    return res.status(201).json(await createSession());
   });
 
   app.get("/api/kiosk/sessions/:token", kioskSessionLookupLimiter, async (req, res) => {
-    const token = req.params.token as string;
-    const session = await prisma.kioskSession.findUnique({
-      where: { token },
-    });
-    if (!session) return res.status(404).json({ message: "Session not found" });
-    if (Date.now() > session.expiresAt.getTime()) {
-      await prisma.kioskSession.delete({ where: { token } });
-      return res.status(410).json({ message: "Session expired" });
-    }
+    const session = await sessionFor(req.params.token as string, true);
     return res.json({
       token: session.token,
       eventId: session.eventId ?? null,
-      expiresAt: session.expiresAt.getTime(),
+      expiresAt: session.expiresAt,
       isBound: Boolean(session.eventId),
     });
   });
 
   app.post("/api/kiosk/sessions/refresh", kioskSessionRefreshLimiter, async (req, res) => {
     const token = req.header("x-kiosk-token");
-    if (!token) return res.status(400).json({ message: "Missing kiosk token" });
+    if (!token) throw new HttpError(400, "Missing kiosk token");
+    const session = await sessionFor(token, true);
 
-    const session = await prisma.kioskSession.findUnique({ where: { token } });
-    if (!session) return res.status(404).json({ message: "Session not found" });
-    if (Date.now() > session.expiresAt.getTime()) {
-      await prisma.kioskSession.delete({ where: { token } });
-      return res.status(410).json({ message: "Session expired" });
-    }
-
-    const nextExpiresAt = new Date(Date.now() + kioskAccessTtlMs);
-    const updated = await prisma.kioskSession.update({
-      where: { token },
-      data: {
-        expiresAt: nextExpiresAt,
-        accessExpiresAt: session.eventId ? nextExpiresAt : session.accessExpiresAt,
-      } as any,
-    });
-
+    const next = Date.now() + kioskAccessTtlMs;
+    const updated = { ...session, expiresAt: next, accessExpiresAt: session.eventId ? next : session.accessExpiresAt };
+    await saveSession(updated);
     return res.json({
       token: updated.token,
       eventId: updated.eventId ?? null,
-      expiresAt: updated.expiresAt.getTime(),
-      accessExpiresAt: updated.accessExpiresAt ? updated.accessExpiresAt.getTime() : null,
+      expiresAt: updated.expiresAt,
+      accessExpiresAt: updated.accessExpiresAt ?? null,
       isBound: Boolean(updated.eventId),
     });
   });
 
-  app.post("/api/kiosk/sessions/:token/bind", kioskSessionBindLimiter, async (req, res) => {
-    const token = req.params.token as string;
-    const schema = z.object({ eventId: z.string().min(1) });
-    const parsed = schema.safeParse(req.body);
+  app.post("/api/kiosk/sessions/:token/bind", kioskSessionBindLimiter, async (req: AuthRequest, res) => {
+    const parsed = z.object({ eventId: z.string().min(1) }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json(parsed.error.flatten());
 
-    const session = await prisma.kioskSession.findUnique({
-      where: { token },
-    });
-    if (!session) return res.status(404).json({ message: "Session not found" });
-
+    const session = await sessionFor(req.params.token as string);
     if (session.eventId && session.eventId !== parsed.data.eventId) {
-      return res.status(400).json({ message: "Session is already bound to a different event" });
+      throw new HttpError(400, "Session is already bound to a different event");
+    }
+    const target = await loadEvent(db, parsed.data.eventId);
+    if (!(target.isGuest && !target.userId) && (!req.user || target.userId !== req.user.id)) {
+      throw new HttpError(403, "Authentication required to access this event");
     }
 
-    const target = await prisma.event.findUnique({
-      where: { id: parsed.data.eventId },
-      select: { id: true, isGuest: true, userId: true },
-    });
-    if (!target) return res.status(404).json({ message: "Event not found" });
-
-    if (!(target.isGuest && !target.userId)) {
-      const reqUser = (req as any).user;
-      if (!reqUser || target.userId !== reqUser.id) {
-        return res.status(403).json({ message: "Authentication required to access this event" });
-      }
-    }
-
-    await prisma.kioskSession.update({
-      where: { token },
-      data: { eventId: parsed.data.eventId },
-    });
-
-    return res.json({ token: session.token, eventId: parsed.data.eventId, isBound: true });
+    await saveSession({ ...session, eventId: target.id });
+    return res.json({ token: session.token, eventId: target.id, isBound: true });
   });
 
-  app.post("/api/kiosk/sessions/:token/create-event", kioskSessionCreateEventLimiter, async (req, res) => {
-    const token = req.params.token as string;
+  app.post("/api/kiosk/sessions/:token/create-event", kioskSessionCreateEventLimiter, async (req: AuthRequest, res) => {
     const parsed = createEventSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json(parsed.error.flatten());
 
-    const session = await prisma.kioskSession.findUnique({
-      where: { token },
-    });
-    if (!session) return res.status(404).json({ message: "Session not found" });
-    if (session.eventId) return res.status(400).json({ message: "Session already has an event" });
+    const session = await sessionFor(req.params.token as string);
+    if (session.eventId) throw new HttpError(400, "Session already has an event");
 
-    const isGuest = !(req as any).user || parsed.data.isGuest;
-    const event = await prisma.event.create({
-      data: {
-        name: parsed.data.name,
-        pointLimit: parsed.data.pointLimit,
-        lanes: parsed.data.lanes,
-        theme: parsed.data.theme,
-        weightUnit: parsed.data.weightUnit,
-        userId: (req as any).user?.id || null,
-        isGuest,
-      },
-      include: { scouts: true, heats: true },
-    });
-
-    await prisma.kioskSession.update({
-      where: { token },
-      data: { eventId: event.id },
-    });
-
-    const fullEvent = await getEventWithDetails(prisma, event.id);
-    return res.status(201).json(serializeEvent(fullEvent));
+    const { isGuest, ...fields } = parsed.data;
+    const event = newEvent(nanoid(), { ...fields, userId: req.user?.id ?? null, isGuest: !req.user || isGuest });
+    await db.set(collections.events, event.id, event);
+    await saveSession({ ...session, eventId: event.id });
+    return res.status(201).json(serializeEvent(event));
   });
 
   app.post("/api/kiosk/sessions/:token/pairing-request", kioskPairingRequestLimiter, async (req, res) => {
-    const token = req.params.token as string;
-    const session = await prisma.kioskSession.findUnique({
-      where: { token },
-    });
-    if (!session) return res.status(404).json({ message: "Session not found" });
-
-    const qrToken = nanoid(16);
-    const pairingCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 2 * 60_000);
-
-    await prisma.pairingRequest.create({
-      data: {
-        qrToken,
-        pairingCode,
-        kioskToken: session.token,
-        expiresAt,
-      },
-    });
-
-    return res.status(201).json({ qrToken, pairingCode, expiresAt: expiresAt.getTime() });
+    const session = await sessionFor(req.params.token as string);
+    const expiresAt = Date.now() + PAIRING_TTL_MS;
+    const pairing: PairingDoc = {
+      qrToken: nanoid(16),
+      pairingCode: Math.floor(100000 + Math.random() * 900000).toString(),
+      kioskToken: session.token,
+      expiresAt,
+      expireAt: new Date(expiresAt),
+    };
+    await db.set(collections.pairings, pairing.qrToken, pairing);
+    return res.status(201).json({ qrToken: pairing.qrToken, pairingCode: pairing.pairingCode, expiresAt });
   });
 
   app.post("/api/kiosk/pair", kioskPairLimiter, async (req, res) => {
-    const schema = z.object({
-      qrToken: z.string().min(1),
-      pairingCode: z.string().min(6).max(6),
-    });
-    const parsed = schema.safeParse(req.body);
+    const parsed = z.object({ qrToken: z.string().min(1), pairingCode: z.string().min(6).max(6) }).safeParse(req.body);
     if (!parsed.success) return res.status(400).json(parsed.error.flatten());
 
-    const request = await prisma.pairingRequest.findUnique({
-      where: { qrToken: parsed.data.qrToken },
-    });
-    if (!request) return res.status(404).json({ message: "Pairing request not found or expired" });
-
-    if (Date.now() > request.expiresAt.getTime()) {
-      await prisma.pairingRequest.delete({ where: { qrToken: parsed.data.qrToken } });
-      return res.status(410).json({ message: "Pairing request expired" });
+    const request = await db.get<PairingDoc>(collections.pairings, parsed.data.qrToken);
+    if (!request) throw new HttpError(404, "Pairing request not found or expired");
+    if (Date.now() > request.expiresAt) {
+      await db.delete(collections.pairings, request.qrToken);
+      throw new HttpError(410, "Pairing request expired");
     }
+    if (request.pairingCode !== parsed.data.pairingCode) throw new HttpError(401, "Invalid pairing code");
 
-    if (request.pairingCode !== parsed.data.pairingCode) {
-      return res.status(401).json({ message: "Invalid pairing code" });
-    }
+    const session = await sessionFor(request.kioskToken);
+    const expiresAt = Date.now() + kioskAccessTtlMs;
+    await saveSession({ ...session, expiresAt, accessExpiresAt: expiresAt });
+    await db.delete(collections.pairings, request.qrToken);
 
-    const session = await prisma.kioskSession.findUnique({
-      where: { token: request.kioskToken },
-    });
-    if (!session) return res.status(404).json({ message: "Session not found" });
-
-    await prisma.kioskSession.update({
-      where: { token: session.token },
-      data: { expiresAt: new Date(Date.now() + kioskAccessTtlMs), accessExpiresAt: new Date(Date.now() + kioskAccessTtlMs) } as any,
-    });
-
-    await prisma.pairingRequest.delete({ where: { qrToken: parsed.data.qrToken } });
-
-    if (session.eventId) {
-      io.to(session.eventId).emit("kiosk:paired");
-    }
-
-    return res.json({
-      token: session.token,
-      eventId: session.eventId ?? null,
-      expiresAt: Date.now() + kioskAccessTtlMs,
-    });
+    if (session.eventId) io.to(session.eventId).emit("kiosk:paired");
+    return res.json({ token: session.token, eventId: session.eventId ?? null, expiresAt });
   });
 }

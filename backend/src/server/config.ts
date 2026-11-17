@@ -1,14 +1,9 @@
 /*
-  Centralized config derived from environment variables.
+  Settings from environment variables.
 
-  This module is imported by the server entrypoint and route/socket modules.
-  It is intentionally small and side-effect free so it can be reused in tests.
+  - CORS_ORIGIN: the app's address(es), comma-separated (empty allows any origin, for local runs)
+  - PORT: where to listen (Cloud Run sets it)
 */
-export const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-if (process.env.NODE_ENV === "production" && JWT_SECRET === "your-secret-key") {
-  throw new Error("JWT_SECRET must be set in production");
-}
-
 const corsOrigin = (process.env.CORS_ORIGIN ?? "").trim();
 export const corsOrigins = corsOrigin.length > 0
   ? corsOrigin
@@ -17,10 +12,6 @@ export const corsOrigins = corsOrigin.length > 0
       .filter(Boolean)
   : [];
 
-export const allowAllOrigins = corsOrigins.length === 0;
-export const allowedOriginSet = new Set(corsOrigins);
-
 export const kioskAccessTtlMs = 3 * 60 * 60_000;
-export const guestEventTtlMs = 24 * 60 * 60_000;
 
 export const port = Number(process.env.PORT ?? 8787);
