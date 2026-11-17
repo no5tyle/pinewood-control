@@ -17,8 +17,8 @@
   It draws into the page itself (no shadow DOM, no images from elsewhere, no inline styles), so it
   works under each site's strict Content-Security-Policy. Size it with --qs-switch-size (36px).
 
-  The same file is in programmer, qstored-internal, qstored-account and pinewood-control (frontend/public).
-  Change them all together.
+  The same file is in programmer, qstored-internal, qstored-account, pinewood-control (frontend/public) and
+  qstored-gear (static). Change them all together.
   To add an app, add it to APPS below.
 */
 (() => {
@@ -27,6 +27,7 @@
   // Icons drawn inline (36 × 36), so no site has to allow images from elsewhere
   const ICONS = {
     pinewood: '<svg viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="120" fill="#052767"/><g transform="translate(51 51) scale(.8)"><path fill="#fff" d="M408.29 262.879a35.125 35.125 0 1 0 35.125 35.125 35.17 35.17 0 0 0-35.125-35.125zm0 62.873a27.736 27.736 0 1 1 27.736-27.737 27.736 27.736 0 0 1-27.736 27.748zm8.876-27.737a8.876 8.876 0 1 1-8.876-8.875 8.876 8.876 0 0 1 8.876 8.875zm-265.538 0a35.125 35.125 0 1 0-35.126 35.126 35.17 35.17 0 0 0 35.126-35.126zm-35.126 27.737a27.736 27.736 0 1 1 27.737-27.737 27.736 27.736 0 0 1-27.737 27.748zm345.452-21.823a53.997 53.997 0 1 0-107.617-5.925 53.665 53.665 0 0 0 5.447 23.61H165.008a53.986 53.986 0 1 0-101.849-15.211C37.542 295.64 21 278.033 21 250.186c0-28.846 86.87-69.418 142.122-71.327v34.094a24.83 24.83 0 0 0 24.83 24.83h47.517a24.774 24.774 0 0 0 24.409-20.758s-1.62-21.668-6.813-25.518l3.407-2.54 24.474 28.08h94.104c63.994-.022 115.95 23.42 115.95 52.266 0 13.314-10.973 25.396-29.046 34.616zm-336.576-5.925a8.876 8.876 0 1 1-8.876-8.876 8.876 8.876 0 0 1 8.876 8.887z"/></g></svg>',
+    gear: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#5b4a2e"/><path d="M8 13 16 8l8 5v10H8zM12 23v-5h8v5" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>',
     programmer: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#052767"/><path d="M8 10h16M8 16h16M8 22h10" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg>',
     internal: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#b42318"/><path d="M16 7.5 9 10.5v5c0 4.4 3 7.9 7 9 4-1.1 7-4.6 7-9v-5z" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"/></svg>',
     account: '<svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#3a3a3c"/><circle cx="16" cy="12.5" r="4.5" fill="none" stroke="#fff" stroke-width="2.2"/><path d="M8.5 24.5a7.5 7.5 0 0 1 15 0" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg>',
@@ -35,6 +36,7 @@
   const APPS = [
     { id: 'programmer', name: 'Program Builder', tagline: 'Term programs for Scout families', url: 'https://program.qstored.org/' },
     { id: 'pinewood', name: 'Pinewood Control', tagline: 'Race night for pinewood derbies', url: 'https://pinewood.qstored.org/' },
+    { id: 'gear', name: 'Gear', tagline: "Your group's Q-Store, supplies and halls", url: 'https://gear.qstored.org/' },
     { id: 'internal', name: 'Internal', tagline: 'Accounts and admin', url: 'https://internal.qstored.org/', sysadmin: true },
   ];
 
