@@ -51,9 +51,11 @@ export const currentSession = () => session;
 
 /** Signs in (or out, with null) here and on every other qStored site. */
 function setSession(next: Session | null) {
-  keepSession(next ? { ...next, shared: true } : null);
-  if (session) writeShared(session);
+  // The cookie first: telling the app (in keepSession) can call the API, whose syncShared reads it
+  const shared = next ? { ...next, shared: true } : null;
+  if (shared) writeShared(shared);
   else clearShared();
+  keepSession(shared);
 }
 
 /** Changes this site's own copy, and tells the app when it's a different person (or none). */
