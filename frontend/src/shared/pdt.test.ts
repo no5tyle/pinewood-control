@@ -64,4 +64,8 @@ describe("armCommands", () => {
     expect(armCommands(["a", "b"], 4)).toEqual(["U", "M3", "M4", "R"]);
     expect(armCommands(["a", "b", "c"], 3)).toEqual(["U", "R"]);
   });
+  it("masks lanes 10 to 12 as A to C", () => {
+    const twelve = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "", "k", ""];
+    expect(armCommands(twelve, 12)).toEqual(["U", "MA", "MC", "R"]);
+  });
 });

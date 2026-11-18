@@ -124,8 +124,9 @@ export function finishOrderFromTimes(laneAssignments: string[], times: Map<numbe
  */
 export function armCommands(laneAssignments: string[], timerLanes: number): string[] {
   const commands = ["U"];
-  for (let lane = 1; lane <= Math.min(timerLanes, 9); lane++) {
-    if (!laneAssignments[lane - 1]) commands.push(`M${lane}`);
+  // Lanes 1 to 9 by their digit; pinewood-time takes lanes 10 to 12 as A to C
+  for (let lane = 1; lane <= Math.min(timerLanes, 12); lane++) {
+    if (!laneAssignments[lane - 1]) commands.push(`M${lane <= 9 ? lane : String.fromCharCode(55 + lane)}`);
   }
   commands.push("R");
   return commands;
