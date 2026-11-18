@@ -77,15 +77,17 @@ function emulatorHarness(): Harness {
     db,
     start: starter(db, new FirebaseTokenAuth(getAuth(firebase))),
     async signIn() {
-      const res = await fetch(
-        `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=test`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: `${randomUUID()}@example.com`, password: randomUUID(), returnSecureToken: true }),
-        },
-      );
-      return ((await res.json()) as { idToken: string }).idToken;
+      const call = async (path: string, body: object) => {
+        const res = await fetch(`http://${process.env.FIREBASE_AUTH_EMULATOR_HOST}/identitytoolkit.googleapis.com/v1/${path}?key=test`, {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, returnSecureToken: true }),
+        });
+        return (await res.json()) as { idToken: string; localId: string };
+      };
+      const login = { email: `${randomUUID()}@example.com`, password: randomUUID() };
+      const created = await call("accounts:signUp", login);
+      // Confirmed, as an emailed link confirms it: unconfirmed sign-ins aren't accounts (see userFrom)
+      await getAuth(firebase).updateUser(created.localId, { emailVerified: true });
+      return (await call("accounts:signInWithPassword", login)).idToken;
     },
   };
 }

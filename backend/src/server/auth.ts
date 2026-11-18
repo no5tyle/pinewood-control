@@ -23,14 +23,32 @@ export interface Auth {
   verify(token: string): Promise<User | null>;
 }
 
+/** What's used of a sign-in's token. */
+export interface SignInClaims {
+  uid: string;
+  email?: string;
+  email_verified?: boolean;
+  firebase?: { sign_in_provider?: string };
+}
+
+/**
+ * The account a sign-in is, or null. qStored signs people in by emailed link (which confirms the address) or with
+ * Microsoft (whose addresses are Microsoft's to vouch for). Firebase also lets anyone make a password sign-in for
+ * any address through its API, unconfirmed; those are no account here, so nobody can take an address that isn't
+ * theirs. The same rule as the qStored API's (programmer-api, src/auth.ts).
+ */
+export function userFrom(claims: SignInClaims): User | null {
+  if (!claims.email) return null;
+  if (claims.email_verified !== true && claims.firebase?.sign_in_provider !== "microsoft.com") return null;
+  return { id: claims.uid, email: claims.email };
+}
+
 export class FirebaseTokenAuth implements Auth {
   constructor(private readonly firebase: FirebaseAuth) {}
 
   async verify(token: string): Promise<User | null> {
     try {
-      const claims = await this.firebase.verifyIdToken(token);
-      // qStored accounts always have an email (email link or Microsoft).
-      return claims.email ? { id: claims.uid, email: claims.email } : null;
+      return userFrom(await this.firebase.verifyIdToken(token));
     } catch {
       return null;
     }
