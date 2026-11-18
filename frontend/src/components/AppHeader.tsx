@@ -67,7 +67,7 @@ function PatrolIcon() {
 function BrandMark() {
   return (
     <svg className="brand-mark" viewBox="0 0 512 512" aria-hidden="true">
-      <rect width="512" height="512" rx="120" fill="#052767" />
+      <rect width="512" height="512" rx="120" fill="#C8102E" />
       <g transform="translate(51 51) scale(.8)">
         <path
           fill="#fff"
