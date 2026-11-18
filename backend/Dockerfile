@@ -1,20 +1,17 @@
-FROM node:20-bookworm-slim
-
+# Built and run by Cloud Run (see the README). Data is in Firestore, so the container keeps nothing.
+FROM node:22-bookworm-slim AS build
 WORKDIR /app
-
-RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
-
 COPY package.json package-lock.json ./
 RUN npm ci
-
-COPY tsconfig.json prisma.config.ts ./
-COPY prisma ./prisma
-RUN npx prisma generate
-
+COPY tsconfig.json tsconfig.build.json ./
 COPY src ./src
-RUN npx tsc --noEmit -p tsconfig.json
+RUN npm run build
 
-ENV PORT=8787
-EXPOSE 8787
-
-CMD ["npm","start"]
+FROM node:22-bookworm-slim
+WORKDIR /app
+ENV NODE_ENV=production
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+COPY --from=build /app/dist ./dist
+USER node
+CMD ["node", "dist/server.js"]

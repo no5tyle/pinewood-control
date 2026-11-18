@@ -2,32 +2,26 @@
   Heat matchmaking algorithm.
 
   Usage:
-  - chooseNextHeat(prisma, eventId) is called by the “generate heat” route.
+  - chooseNextHeat(event) is called by the “generate heat” route, inside the event's update.
   - It selects the next group and lane ordering based on:
     1) balancing heats participated (nobody races twice before others race once, where possible)
     2) maximizing new opponent pairings / minimizing repeat matchups
     3) lane fairness (even lane usage over time)
     4) points closeness as a final tie-breaker
-  - It persists laneHistory updates and creates the Heat record.
+  - It only chooses: it gives the racer ids by lane (lane 1 first), or null if no heat can be made.
+    The route adds the heat and the lane history to the event.
 */
-import type { PrismaClient } from "@prisma/client";
-import { nanoid } from "nanoid";
-import { getEventWithDetails } from "./eventService.js";
-import { safeParseJSON, shuffle } from "./helpers.js";
+import { shuffle } from "./helpers.js";
+import type { EventDoc, HeatDoc } from "./store/types.js";
 
 function pairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-async function buildPairCounts(prisma: PrismaClient, eventId: string): Promise<Map<string, number>> {
-  const heats = await prisma.heat.findMany({
-    where: { eventId },
-    select: { laneAssignments: true },
-  });
-
+function buildPairCounts(heats: HeatDoc[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const heat of heats) {
-    const laneAssignments = safeParseJSON<string[]>(heat.laneAssignments, []);
+    const laneAssignments = heat.laneAssignments ?? [];
     for (let i = 0; i < laneAssignments.length; i += 1) {
       for (let j = i + 1; j < laneAssignments.length; j += 1) {
         const key = pairKey(laneAssignments[i], laneAssignments[j]);
@@ -123,7 +117,7 @@ function buildCandidateGroups(active: any[], heatSize: number): any[][] {
 // - “Offset” runs are treated as neutral across lanes, so they don’t bias lane fairness.
 function laneBalanceScore(scout: any, lane: number, laneCount: number): number {
   const lanesSafe = Math.max(2, laneCount);
-  const history = safeParseJSON<number[]>(scout.laneHistory, []);
+  const history = (scout.laneHistory ?? []);
   let laneHits = 0;
   let offsetRuns = 0;
 
@@ -142,7 +136,7 @@ function laneBalanceScore(scout: any, lane: number, laneCount: number): number {
 }
 
 function heatsRunCount(scout: any): number {
-  const historyLen = safeParseJSON<number[]>(scout.laneHistory, []).length;
+  const historyLen = (scout.laneHistory ?? []).length;
   const offset = typeof scout.heatCountOffset === "number" && Number.isFinite(scout.heatCountOffset) ? scout.heatCountOffset : 0;
   return historyLen + Math.max(0, Math.floor(offset));
 }
@@ -195,8 +189,7 @@ function chooseDesiredHeatSize(minBucketSize: number, lanes: number): number {
   return Math.min(laneMax, Math.max(2, balancedSize));
 }
 
-export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Promise<any | null> {
-  const event = await getEventWithDetails(prisma, eventId);
+export function chooseNextHeat(event: EventDoc): string[] | null {
   const active = event.scouts.filter((s: any) => !s.eliminated);
   if (active.length < 2) return null;
 
@@ -208,7 +201,7 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
   const minBucket = active.filter((s: any) => (runsById.get(s.id) ?? 0) === minRuns);
   const desiredHeatSize = Math.min(laneMax, chooseDesiredHeatSize(minBucket.length, laneMax));
 
-  const pairCounts = await buildPairCounts(prisma, eventId);
+  const pairCounts = buildPairCounts(event.heats);
   let candidateGroups: any[][] = (() => {
     if (minBucket.length >= desiredHeatSize) {
       return sampleUniqueGroups(minBucket, desiredHeatSize, 140);
@@ -314,25 +307,5 @@ export async function chooseNextHeat(prisma: PrismaClient, eventId: string): Pro
     if (bestLaneAssignments.length < 2) return null;
   }
 
-  const laneAssignments = bestLaneAssignments;
-
-  for (let i = 0; i < laneAssignments.length; i += 1) {
-    const scout = event.scouts.find((s: any) => s.id === laneAssignments[i]);
-    if (!scout) continue;
-    const history = safeParseJSON<number[]>(scout.laneHistory, []);
-    history.push(i + 1);
-    await prisma.scout.update({
-      where: { id: scout.id },
-      data: { laneHistory: JSON.stringify(history) },
-    });
-  }
-
-  return await prisma.heat.create({
-    data: {
-      id: nanoid(8),
-      laneAssignments: JSON.stringify(laneAssignments),
-      finishOrder: "[]",
-      eventId,
-    },
-  });
+  return bestLaneAssignments;
 }

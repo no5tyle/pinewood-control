@@ -1,97 +1,29 @@
 /*
-  Server entrypoint.
+  Starts the Pinewood API.
 
-  Responsibilities:
-  - Create Express app + HTTP server
-  - Configure CORS and global middleware (JSON parsing, auth, rate limiting)
-  - Create Socket.IO server and register socket handlers
-  - Register themed route modules (auth, patrols, kiosk, events)
-  - Run periodic cleanup tasks
-
-  Most implementation details live in ./server/* to keep this file small.
+  Data is kept in Firestore and sign-ins are qStored accounts (Firebase Authentication), in the Google
+  Cloud project Cloud Run runs in. With FIRESTORE_EMULATOR_HOST and FIREBASE_AUTH_EMULATOR_HOST set
+  (npm run dev), it uses the Firebase emulators instead.
 */
-import cors from "cors";
-import express from "express";
-import { createServer } from "node:http";
-import { Server } from "socket.io";
-import { PrismaClient } from "@prisma/client";
-import { allowAllOrigins, allowedOriginSet, corsOrigins, JWT_SECRET, guestEventTtlMs, port } from "./server/config.js";
-import { authenticate } from "./server/auth.js";
-import { createEngineRateLimiter, createRateLimiter } from "./server/rateLimit.js";
-import { purgeExpiredGuestEvents } from "./server/purge.js";
-import { registerSocketHandlers } from "./server/socketHandlers.js";
-import { registerAuthRoutes } from "./server/routes/authRoutes.js";
-import { registerPatrolRoutes } from "./server/routes/patrolRoutes.js";
-import { registerRaceSetupRoutes } from "./server/routes/raceSetupRoutes.js";
-import { registerKioskRoutes } from "./server/routes/kioskRoutes.js";
-import { registerEventRoutes } from "./server/routes/eventRoutes.js";
-import { startPeriodicCleanup } from "./server/cleanup.js";
+import { initializeApp } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
+import { getFirestore } from "firebase-admin/firestore";
+import { createApp } from "./app.js";
+import { FirebaseTokenAuth } from "./server/auth.js";
+import { corsOrigins, port } from "./server/config.js";
+import { FirestoreDb } from "./server/store/db.js";
 
-const prisma = new PrismaClient();
-const app = express();
-app.set("trust proxy", true);
+const firebase = initializeApp(process.env.GCLOUD_PROJECT ? { projectId: process.env.GCLOUD_PROJECT } : undefined);
+const firestore = getFirestore(firebase);
+firestore.settings({ ignoreUndefinedProperties: true });
 
-const corsOptions = allowAllOrigins
-  ? undefined
-  : {
-      origin: (origin: string | undefined, callback: (err: Error | null, allowed?: boolean) => void) => {
-        if (!origin) return callback(null, true);
-        const normalized = origin.replace(/\/+$/, "");
-        if (allowedOriginSet.has(normalized)) return callback(null, true);
-        return callback(new Error(`Origin not allowed: ${origin}`));
-      },
-      credentials: true,
-    };
-
-app.use(cors(corsOptions));
-app.use(express.json());
-app.get("/api/health", (_req, res) => {
-  return res.json({ ok: true, time: Date.now() });
-});
-app.use(createRateLimiter({ windowMs: 60_000, max: 300, keyPrefix: "api" }));
-app.use(authenticate(JWT_SECRET) as unknown as express.RequestHandler);
-
-const httpServer = createServer(app);
-
-const io = new Server(httpServer, {
-  cors: allowAllOrigins
-    ? { origin: "*", methods: ["GET", "POST", "PATCH", "DELETE"] }
-    : {
-        origin: corsOrigins,
-        credentials: true,
-        methods: ["GET", "POST", "PATCH", "DELETE"],
-      },
-});
-
-io.engine.use(createEngineRateLimiter({ windowMs: 60_000, max: 600, keyPrefix: "socket" }));
-
-registerSocketHandlers({ io, prisma, JWT_SECRET });
-registerAuthRoutes({ app, prisma, JWT_SECRET });
-registerPatrolRoutes({ app, prisma });
-registerRaceSetupRoutes({ app, prisma });
-registerKioskRoutes({ app, prisma, io });
-registerEventRoutes({ app, prisma, io });
-
-startPeriodicCleanup(prisma);
-
-void purgeExpiredGuestEvents(prisma, guestEventTtlMs).catch(() => undefined);
-setInterval(() => {
-  void purgeExpiredGuestEvents(prisma, guestEventTtlMs).catch(() => undefined);
-}, 15 * 60_000);
-
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error("Unhandled error:", err);
-  const message = err instanceof Error ? err.message : "Server error";
-  return res.status(500).json({ message });
-});
+const { httpServer, io } = createApp({ db: new FirestoreDb(firestore), auth: new FirebaseTokenAuth(getAuth(firebase)), corsOrigins });
 
 httpServer.listen(port, () => {
   console.log(`Server listening on port ${port}`);
 });
 
 process.on("SIGTERM", () => {
-  httpServer.close(() => {
-    prisma.$disconnect().catch(() => undefined);
-    process.exit(0);
-  });
+  void io.close();
+  httpServer.close(() => process.exit(0));
 });

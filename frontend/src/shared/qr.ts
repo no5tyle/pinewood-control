@@ -1,21 +1,9 @@
 import appConfig from "../appConfig.json";
 
+/** The address kiosk QR codes point at: VITE_QR_PREFIX if set, a LAN address in appConfig.json for local runs, else this site. */
 export function getQrPrefix(): string {
-  const canonical = "https://pinewood.nostyle.app";
   const envPrefix = import.meta.env.VITE_QR_PREFIX as string | undefined;
-  if (envPrefix && envPrefix.trim().length > 0) {
-    const normalized = envPrefix.trim().replace(/\/+$/, "");
-    if (normalized === "https://nostyle.app" || normalized === "https://www.nostyle.app") return canonical;
-    return normalized;
-  }
-
-  if (window.location.hostname === "nostyle.app" || window.location.hostname === "www.nostyle.app") {
-    return canonical;
-  }
-
-  if (window.location.hostname === "pinewood.nostyle.app") {
-    return canonical;
-  }
+  if (envPrefix && envPrefix.trim().length > 0) return envPrefix.trim().replace(/\/+$/, "");
 
   const filePrefix = appConfig.qrPrefix?.trim();
   if (filePrefix && (window.location.hostname === "localhost" || window.location.hostname.startsWith("192.168.") || window.location.hostname.startsWith("10."))) {
@@ -24,4 +12,3 @@ export function getQrPrefix(): string {
 
   return window.location.origin.replace(/\/+$/, "");
 }
-

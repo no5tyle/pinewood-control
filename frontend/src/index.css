@@ -28,7 +28,7 @@
   --bronze: #b4642d;
   --bronze-bg: rgba(204, 119, 34, 0.14);
 
-  /* The bar's sizes are shared by every no5tyle app (--n5-bar-* in no5tyle.css) */
+  /* The bar's sizes are shared look's (--n5-bar-* in base.css) */
   --appbar-height: var(--n5-bar-height);
 
   font-family: var(--font);
@@ -604,8 +604,8 @@ input[type="checkbox"] {
     --appbar-height: var(--n5-bar-height-compact);
   }
 
-  n5-app-switcher {
-    --n5-switch-size: var(--n5-bar-icon-compact);
+  qs-app-switcher {
+    --qs-switch-size: var(--n5-bar-icon-compact);
   }
 
   .app-header {
@@ -709,14 +709,14 @@ input[type="checkbox"] {
   height: 2.5rem;
 }
 
-.app-header-wrap.kiosk n5-app-switcher {
-  --n5-switch-size: 2.25rem;
+.app-header-wrap.kiosk qs-app-switcher {
+  --qs-switch-size: 2.25rem;
   position: static;
 }
 
 /* Inside the round capsule the switcher sits within its padding, rather than reaching past it as it
    does in a bar, so its corners aren't cut off */
-.app-header-wrap.kiosk .n5-switch-btn {
+.app-header-wrap.kiosk .qs-switch-btn {
   margin: 0;
   padding: 2px 2px 2px 2px;
 }
@@ -726,7 +726,7 @@ input[type="checkbox"] {
   position: relative;
 }
 
-.app-header-wrap.kiosk .n5-switch-menu {
+.app-header-wrap.kiosk .qs-switch-menu {
   left: auto;
   right: 0;
   transform-origin: top right;
@@ -2683,3 +2683,15 @@ button.danger-solid {
   color: var(--kiosk-text);
 }
 .kiosk-last-heat .kiosk-heat-times li { font-size: 1.15rem; }
+
+.microsoft-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  margin-bottom: 1rem;
+  background: var(--surface, #fff);
+  color: var(--text, inherit);
+  border: 1px solid var(--border, rgba(60, 60, 67, 0.29));
+}

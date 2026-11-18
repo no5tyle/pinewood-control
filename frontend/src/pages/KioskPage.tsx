@@ -253,7 +253,7 @@ export function KioskPage() {
             <h1>{event.name}</h1>
             {event.isGuest && !user ? (
               <div className="banner info desktop-only">
-                This is a guest event. <Link to="/login">Login</Link> or <Link to="/signup">Signup</Link> to save it to your account.
+                This is a guest event. <Link to="/login">Sign in</Link> to save it to your account.
               </div>
             ) : null}
             {event.isGuest && user ? (

@@ -9,13 +9,13 @@ Pinewood Control is a web app for running a Pinewood Derby style race with a **K
 - Saved **Race Setups** (lanes, elimination points, theme, weight unit), so an event is set up in one tap and only needs its racers
 - An optional **electronic timer** add-on: a PDT-compatible timer (such as [pinewood-time](https://github.com/no5tyle/pinewood-time)) plugged into the operator's computer fills in each heat's finish order from its lane times, and the kiosk shows the times. See [Electronic timer](#electronic-timer-optional)
 
-Live app: https://pinewood.nostyle.app
+Live app: https://pinewood.qstored.org. Free, always. Accounts are [qStored](https://qstored.org) accounts, the same as the Program Builder's.
 
 ## Look
 
-Pinewood Control shares one look with no5tyle's other apps ([Beacon](https://no5tyle.github.io/Beacon/), the [Program Builder](https://no5tyle.github.io/programmer/) and [Snag Calc](https://no5tyle.github.io/snagCalc/)): Apple's system colours and font, rounded cards, capsule buttons, a see-through bar across the top, and dark mode that follows the device. The colours, rounding and font come from the shared stylesheet, https://no5tyle.github.io/shared/no5tyle.css, which `frontend/index.html` links before `src/index.css`.
+Pinewood Control shares one look with qStored's other apps: Apple's system colours and font, rounded cards, capsule buttons, a see-through bar across the top, and dark mode that follows the device. The colours, rounding and font are in `frontend/src/base.css` (a copy of no5tyle's shared stylesheet), before `src/index.css`. The qStored app switcher at the top left is `frontend/public/qstored-switcher.js`, the same file as in qStored's other apps.
 
-- **Computer:** the bar shows the app's name, Events, Patrols, Setups and Help, with your account at the right (Log out is in its menu).
+- **Computer:** the bar shows the app's name, Events, Patrols, Setups and Help, with your account at the right (Sign out is in its menu).
 - **Phone:** the bar shows the name and one menu button holding everything.
 - **Kiosk:** the bar shrinks to a small glass capsule in the corner, and the kiosk keeps its own big-screen themes (System, Cubs Australia, BSA).
 
@@ -45,127 +45,124 @@ The times are saved with each heat. The kiosk shows them on the heat winner scre
 
 **Turn off the timer add-on**, at the bottom of the timer card, puts Race Control back as it was.
 
-How it works: the browser talks to the timer over the [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) (`frontend/src/shared/pdtSerial.ts`). The protocol and the finish-order logic are pure and tested (`frontend/src/shared/pdt.ts`), the connection is `frontend/src/hooks/useTimer.ts`, and the card is `frontend/src/components/TimerPanel.tsx`. The backend only stores each heat's times (`Heat.laneTimes`); nothing on the server talks to the timer.
+How it works: the browser talks to the timer over the [Web Serial API](https://developer.mozilla.org/docs/Web/API/Web_Serial_API) (`frontend/src/shared/pdtSerial.ts`). The protocol and the finish-order logic are pure and tested (`frontend/src/shared/pdt.ts`), the connection is `frontend/src/hooks/useTimer.ts`, and the card is `frontend/src/components/TimerPanel.tsx`. The backend only stores each heat's times (its `laneTimes`); nothing on the server talks to the timer.
 
 ## Tech stack
 
-**Frontend**
-- React 19 + TypeScript
-- React Router 7
-- Vite 8
+**Frontend** (`frontend/`, on Firebase Hosting at pinewood.qstored.org)
+- React 19 + TypeScript, React Router 7, Vite 8
 - Socket.IO client
 - QR tools: `qrcode`, `html5-qrcode`
 - Web Serial (Chrome and Edge) for the optional electronic timer
+- Sign-in with qStored accounts (email link, or Microsoft), through Firebase Authentication's REST API: `src/shared/account.ts`
 
-**Backend**
-- Node.js (run via `tsx`)
-- Express 5
-- Prisma ORM
-- Socket.IO
-- Postgres (via `DATABASE_URL`)
-- Zod validation
-- `bcrypt` + `jsonwebtoken` for auth
+**Backend** (`backend/`, on Cloud Run as `pinewood-api`)
+- Node.js 22, Express 5, Socket.IO, Zod
+- Firestore for data, Firebase Authentication ID tokens for sign-in (`firebase-admin`)
+- Tests with Vitest, in memory and on the Firestore and Authentication emulators
+
+## How the data is kept
+
+Everything is in the qStored Google Cloud project's Firestore database, in collections starting `pinewood`:
+
+- **`pinewoodEvents`**: one document per event, holding its racers, heats and history, so a result or a new heat is one atomic change and a live screen gets the whole event in one read.
+- **`pinewoodVotes`**, **`pinewoodPatrols`** (with their racers), **`pinewoodSetups`**.
+- **`pinewoodKioskSessions`** (by token), **`pinewoodPairings`** (by QR token), **`pinewoodGuestLinks`**.
+
+Short-lived records and unclaimed guest events carry an `expireAt` time, and Firestore's TTL policy deletes them (guest events after 24 hours, kiosk sessions after 3 hours, pairing codes after 2 minutes, guest kiosk links after 7 days). Firestore can take up to a day to do so, so the API checks the times itself too. The TTL policies and index settings are in [programmer-api's `firestore.indexes.json`](https://github.com/no5tyle/programmer-api/blob/main/firestore.indexes.json), which owns the database's configuration.
+
+`backend/src/server/store/db.ts` is the small interface the routes use, with a Firestore version and an in-memory one for tests. An event's owner is its qStored account's Firebase uid.
 
 ## Local development
 
-### 1) Backend
-
-Prereqs:
-- Node.js 20+
-- Postgres
-
-Environment variables:
-- `DATABASE_URL` (required): Postgres connection string
-- `JWT_SECRET` (recommended): signing key for auth JWTs
-- `CORS_ORIGIN` (optional): comma-separated list of allowed origins (trailing slashes are stripped). If empty, all origins are allowed.
-- `PORT` (optional): defaults to `8787`
-
-Run:
+Needs Node.js 22 and Java 21 (for the Firebase emulators).
 
 ```bash
 cd backend
 npm install
-npm run db:push
-npm run dev
+npm test                 # the API's tests, in memory
+npm run test:emulators   # the same tests, also against the Firestore and Authentication emulators
+npm run dev              # the API on :8787, against the emulators (data is lost when it stops)
 ```
-
-The API will be available on `http://localhost:8787`.
-
-### 2) Frontend
-
-Environment variables (Vite):
-- `VITE_API_ORIGIN` (recommended for local dev): e.g. `http://localhost:8787`
-- `VITE_QR_PREFIX` (optional): force QR links to use a specific public base URL
-  - See `frontend/.env.example`
-
-Run:
 
 ```bash
 cd frontend
 npm install
-# for local dev, create .env with:
-# VITE_API_ORIGIN=http://localhost:8787
-npm run dev
+VITE_FIREBASE_API_KEY=fake VITE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npm run dev
 ```
+
+The dev server sends `/api` and `/socket.io` to the API on :8787. Sign-in links from the Auth emulator aren't emailed: they're listed at `http://127.0.0.1:9099/emulator/v1/projects/demo-qstored/oobCodes`. Sign in with Microsoft can't be tried on the emulator. The app's settings are in `frontend/.env.example`.
 
 ## Deployment
 
-This repo is split into two deployable apps:
+On every push and pull request, GitHub Actions (`.github/workflows/deploy.yml`) tests the API (with the emulators) and the app. On `main` it then builds the API's container and deploys it to Cloud Run, and builds the app and deploys it to Firebase Hosting. Google is signed in to without stored keys (Workload Identity Federation).
 
-- `backend/`: API + Socket.IO server
-- `frontend/`: static web app (Vite build output)
+### One-time setup
 
-### Backend deployment (Docker)
+In the qStored production project (`PROJECT` below), in `australia-southeast1`:
 
-The backend includes a Dockerfile at `backend/Dockerfile`.
+1. **The API's account.** Make a service account for it with **Cloud Datastore User** (Firestore) and nothing else:
 
-Build and run:
+   ```bash
+   gcloud iam service-accounts create pinewood-api --project PROJECT
+   gcloud projects add-iam-policy-binding PROJECT \
+     --member serviceAccount:pinewood-api@PROJECT.iam.gserviceaccount.com --role roles/datastore.user
+   ```
 
-```bash
-cd backend
-docker build -t pinewood-backend .
-docker run --rm -p 8787:8787 \
-  -e DATABASE_URL='postgresql://USER:PASSWORD@HOST:5432/DB?schema=public' \
-  -e JWT_SECRET='change-me' \
-  -e CORS_ORIGIN='https://your-frontend-domain.example' \
-  pinewood-backend
-```
+2. **The Cloud Run service**, made once with its settings; later deploys only change the image. It scales to zero when no one's racing, and to at most one instance, so every screen of an event is on the same server for the live updates. Session affinity keeps Socket.IO's connection on it, and the long timeout lets a kiosk stay connected through a race night:
 
-Database schema:
+   ```bash
+   gcloud run deploy pinewood-api --project PROJECT --region australia-southeast1 \
+     --image us-docker.pkg.dev/cloudrun/container/hello \
+     --service-account pinewood-api@PROJECT.iam.gserviceaccount.com \
+     --min-instances 0 --max-instances 1 --session-affinity --timeout 3600 \
+     --cpu 1 --memory 512Mi --allow-unauthenticated \
+     --set-env-vars CORS_ORIGIN=https://pinewood.qstored.org
+   ```
 
-```bash
-cd backend
-npm install
-npm run db:push
-```
+   Its address (`https://pinewood-api-….run.app`) is `API_ORIGIN` below. To use `https://pinewood-api.qstored.org` instead, map that domain to the service (Cloud Run → Manage custom domains) and add the DNS record it shows.
 
-Notes:
-- Run `npm run db:push` any time the Prisma schema changes (it uses `prisma db push`). The timer's times added `Heat.laneTimes` (with a default, so existing heats are unaffected).
-- `CORS_ORIGIN` should match your frontend origin(s). It can be a comma-separated list.
+3. **The Hosting site.** Firebase console → Hosting → Add another site, named `qstored-pinewood`. Then add the custom domain `pinewood.qstored.org` to it and add the DNS records it shows.
 
-### Frontend deployment (static hosting)
+4. **Sign-in.** Firebase console → Authentication → Settings → Authorised domains: add `pinewood.qstored.org`. If Sign in with Microsoft is on, nothing else is needed: it uses the same Firebase sign-in, which comes back to `pinewood.qstored.org/login`.
 
-The frontend is a static build output (`dist/`). For Netlify or similar:
+5. **Expiry.** Deploy the Firestore settings from programmer-api (`firebase deploy --only firestore --project PROJECT`), which turns on the `expireAt` TTL policies.
 
-- Build command: `npm run build`
-- Publish directory: `dist`
+6. **Deploys from GitHub.** Use the deploy service account the other qStored repos use (`github-deploy@PROJECT.iam.gserviceaccount.com`), with a Workload Identity provider for `no5tyle/pinewood-control` the same way as theirs. It needs **Artifact Registry Writer**, **Cloud Run Admin**, **Firebase Hosting Admin**, and **Service Account User** on `pinewood-api@PROJECT.iam.gserviceaccount.com`:
 
-Environment variables:
-- `VITE_API_ORIGIN`: set to your backend origin (e.g. `https://api.yourdomain.example`)
-- `VITE_QR_PREFIX` (optional): if you want QR codes to always use a specific public domain
+   ```bash
+   gcloud iam service-accounts add-iam-policy-binding pinewood-api@PROJECT.iam.gserviceaccount.com \
+     --project PROJECT --member serviceAccount:DEPLOY_SA --role roles/iam.serviceAccountUser
+   ```
 
-### Planned: one server, automatic deploys, a new domain
+7. **The repository's variables** (Settings → Secrets and variables → Actions → Variables):
 
-See [docs/deployment-plan.md](docs/deployment-plan.md) for the plan to run everything from one `docker compose` stack, deploy `main` automatically from GitHub Actions, and move to a new domain.
+   | Variable | Value |
+   | --- | --- |
+   | `PROJECT` | the project id |
+   | `WIF_PROVIDER` | the Workload Identity provider's full name |
+   | `DEPLOY_SA` | the deploy service account's email |
+   | `API_ORIGIN` | the API's address, from step 2 |
+   | `FIREBASE_API_KEY` | the project's web API key (the same as the other qStored sites') |
+   | `MICROSOFT_SIGN_IN` | `true` to offer Sign in with Microsoft |
 
-### Reverse proxy / SSL
+   The deploys are skipped until `PROJECT` is set. Push to `main` (or re-run the workflow) to deploy.
 
-Put the backend behind your reverse proxy of choice (Caddy/Nginx/Traefik) and serve the frontend from static hosting. Ensure:
+8. **The old address.** Once pinewood.qstored.org works, switch off the old server and database, and point pinewood.nostyle.app at the new address (a redirect at its DNS or host) or remove it. Accounts and events on the old server aren't carried over: leaders sign in with a qStored account and set up their Race Patrols again.
 
-- HTTPS end-to-end
-- WebSocket support for Socket.IO
-- `CORS_ORIGIN` on the backend matches the frontend domain(s)
+### What it costs
+
+With no one racing, nothing runs: Cloud Run scales to zero and Firestore charges only for what's stored. A race night is one small instance for a few hours, and a few thousand Firestore reads and writes, well within the free tiers.
 
 ## Licence
 
 Copyright (c) 2026 no5tyle. Source available under the [PolyForm Strict License 1.0.0](LICENSE.md): you may use it for noncommercial purposes, but not change it, share copies or use it commercially. All other rights reserved.
+
+## Keeping its page on qstored.org up to date
+
+A major change (a feature added, changed or removed, a new plan limit, a redesigned screen) also updates
+Pinewood Control's page on qstored.org (/pinewood-control), in the same piece of work:
+
+1. Update its features on qstored.org's product page (/pinewood-control): in no5tyle/qstored, change `scripts/product-pages.py` (each feature's heading, plan badges with any limit, and a few words) and run `python3 scripts/product-pages.py`.
+2. If a screen it shows has changed, retake the pictures: `node scripts/product-shots.cjs ../qstored/shots/pinewood-control` from this repository (see the script's first lines for what must be running), then `python3 scripts/product-images.py` in no5tyle/qstored.
+3. Demo data in screenshots uses short, clean names and emails (Akela, `akela@example.com`): never real people, and never long generated addresses.

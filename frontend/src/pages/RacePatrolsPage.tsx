@@ -59,7 +59,7 @@ export function RacePatrolsPage() {
     void loadPatrols();
   }, [loadPatrols]);
 
-  if (!user) return <AuthRequiredPage message="Login to manage Race Patrols." />;
+  if (!user) return <AuthRequiredPage message="Sign in to manage Race Patrols." />;
 
   const openNew = () => {
     setEditingId(null);

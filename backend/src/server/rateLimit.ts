@@ -13,12 +13,9 @@ import type { Request, Response, NextFunction } from "express";
 
 type RateLimitState = { count: number; resetAtMs: number };
 
-export function getClientIp(req: Pick<Request, "headers" | "ip">): string {
-  const cf = req.headers["cf-connecting-ip"];
-  if (typeof cf === "string" && cf.trim().length > 0) return cf.trim();
-  const xff = req.headers["x-forwarded-for"];
-  if (typeof xff === "string" && xff.trim().length > 0) return xff.split(",")[0].trim();
-  if (Array.isArray(xff) && xff.length > 0 && xff[0].trim().length > 0) return xff[0].split(",")[0].trim();
+// Cloud Run adds the caller's address as the last X-Forwarded-For entry; the app trusts that one hop
+// (see app.ts), so req.ip is the caller and can't be faked by sending the header yourself.
+export function getClientIp(req: Pick<Request, "ip">): string {
   return req.ip || "unknown";
 }
 
@@ -65,7 +62,9 @@ export function createEngineRateLimiter(options: { windowMs: number; max: number
     if (method === "OPTIONS") return next();
 
     const now = Date.now();
-    const ip = getClientIp({ headers: req.headers ?? {}, ip: req.socket?.remoteAddress ?? "unknown" } as any);
+    // Not an Express request, so the caller is read the same way Express does with one trusted hop.
+    const forwarded = String(req.headers?.["x-forwarded-for"] ?? "").split(",").map((s: string) => s.trim()).filter(Boolean);
+    const ip = forwarded.at(-1) ?? req.socket?.remoteAddress ?? "unknown";
     const key = `${keyPrefix}:${ip}`;
     const state = store.get(key);
     if (!state || now >= state.resetAtMs) {

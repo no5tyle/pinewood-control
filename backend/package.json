@@ -1,36 +1,36 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Pinewood derby tournament backend",
-  "main": "src/server.ts",
+  "description": "Pinewood Control API: events, racers and heats in Firestore, with live updates over Socket.IO",
+  "main": "dist/server.js",
   "scripts": {
-    "dev": "tsx watch src/server.ts",
-    "db:push": "prisma db push",
-    "db:generate": "prisma generate",
-    "start": "tsx src/server.ts"
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/server.js",
+    "dev": "firebase emulators:exec --project demo-qstored --only auth,firestore \"tsx watch src/server.ts\"",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:emulators": "firebase emulators:exec --project demo-qstored --only auth,firestore \"vitest run\""
   },
   "keywords": [],
   "author": "",
   "license": "SEE LICENSE IN LICENSE.md",
   "type": "module",
   "dependencies": {
-    "@prisma/client": "^5.22.0",
-    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
+    "firebase-admin": "^14.5.1",
     "nanoid": "^5.1.7",
-    "prisma": "^5.22.0",
     "socket.io": "^4.8.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/bcrypt": "^6.0.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.6.0",
+    "firebase-tools": "^15.36.0",
+    "socket.io-client": "^4.8.4",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^5.1.0"
   }
 }
