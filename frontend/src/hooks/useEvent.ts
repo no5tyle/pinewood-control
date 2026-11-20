@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { idToken } from "../shared/account";
 import { api, isAuthRequiredError } from "../shared/api";
-import { socket } from "../shared/socket";
+import { socket, holdLiveConnection } from "../shared/socket";
 import { kioskSessionStorageKey, removeLocalGuestEventId } from "../shared/storage";
 import type { EventState } from "../shared/types";
 
@@ -23,6 +23,7 @@ export function useEvent(eventId?: string) {
     };
 
     fetchEvent();
+    const release = holdLiveConnection();
 
     const subscribe = () => {
       void idToken().then((authToken) => {
@@ -43,12 +44,16 @@ export function useEvent(eventId?: string) {
     socket.on("event:update", handler);
     socket.on("connect", reconnectHandler);
 
-    const pollId = window.setInterval(fetchEvent, 1500);
+    // The connection sends every change; asking the server only stands in while it's down (and the tab is in sight)
+    const pollId = window.setInterval(() => {
+      if (!socket.connected && !document.hidden) fetchEvent();
+    }, 5000);
 
     return () => {
       socket.off("event:update", handler);
       socket.off("connect", reconnectHandler);
       window.clearInterval(pollId);
+      release();
     };
   }, [eventId]);
 
