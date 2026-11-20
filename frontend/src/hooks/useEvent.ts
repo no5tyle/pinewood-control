@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { idToken } from "../shared/account";
 import { api, isAuthRequiredError } from "../shared/api";
-import { socket, holdLiveConnection } from "../shared/socket";
+import { isQuiet, noteActivity, QUIET_LOOK_MS, socket, holdLiveConnection } from "../shared/socket";
 import { kioskSessionStorageKey, removeLocalGuestEventId } from "../shared/storage";
 import type { EventState } from "../shared/types";
 
@@ -11,9 +11,20 @@ export function useEvent(eventId?: string) {
 
   useEffect(() => {
     if (!eventId) return;
+    // What the event looked like last (all but when it was last used): a real change counts as race activity, keeping
+    // the connection open or waking a quiet page; the same event sent again doesn't
+    let seen: string | null = null;
+    let lastFetch = 0;
+    const take = (next: EventState) => {
+      const now = JSON.stringify({ ...next, lastUsedAt: undefined });
+      if (seen !== null && now !== seen) noteActivity();
+      seen = now;
+      setEvent(next);
+    };
     const fetchEvent = () => {
+      lastFetch = Date.now();
       api<EventState>(`/events/${eventId}?t=${Date.now()}`)
-        .then(setEvent)
+        .then(take)
         .catch((e: Error) => {
           if (isAuthRequiredError(e.message)) {
             removeLocalGuestEventId(eventId);
@@ -34,7 +45,7 @@ export function useEvent(eventId?: string) {
 
     subscribe();
     const handler = (nextEvent: EventState) => {
-      if (nextEvent.id === eventId) setEvent(nextEvent);
+      if (nextEvent.id === eventId) take(nextEvent);
     };
     const reconnectHandler = () => {
       subscribe();
@@ -44,9 +55,12 @@ export function useEvent(eventId?: string) {
     socket.on("event:update", handler);
     socket.on("connect", reconnectHandler);
 
-    // The connection sends every change; asking the server only stands in while it's down (and the tab is in sight)
+    // The connection sends every change; asking the server only stands in while it's down (and the tab is in sight):
+    // every 5 seconds if it dropped, every minute while it's quiet
     const pollId = window.setInterval(() => {
-      if (!socket.connected && !document.hidden) fetchEvent();
+      if (socket.connected || document.hidden) return;
+      if (isQuiet() && Date.now() - lastFetch < QUIET_LOOK_MS) return;
+      fetchEvent();
     }, 5000);
 
     return () => {
