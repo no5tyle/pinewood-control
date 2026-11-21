@@ -2695,3 +2695,48 @@ button.danger-solid {
   color: var(--text, inherit);
   border: 1px solid var(--border, rgba(60, 60, 67, 0.29));
 }
+
+/*
+  On a computer (a mouse, a wide screen) the controls are sized as the Program Builder's: 38px fields and buttons, 14px text,
+  small grey captions, plain-text grey buttons. A phone or tablet keeps the 44px, thumb-sized controls above.
+*/
+@media (min-width: 861px) and (pointer: fine) {
+  button {
+    min-height: 38px;
+    padding: 0.4rem 1rem;
+    font-size: 14px;
+  }
+  input,
+  select {
+    min-height: 38px;
+    padding: 0.4rem 10px;
+    font-size: 14px;
+  }
+  input[type="checkbox"] {
+    min-height: 0;
+    padding: 0;
+  }
+  label {
+    font-size: 12.5px;
+  }
+  label.check {
+    font-size: 14px;
+  }
+  .secondary-btn {
+    color: var(--text);
+    font-weight: 500;
+  }
+  h1 {
+    font-size: 1.75rem;
+  }
+  h2 {
+    font-size: 1.1875rem;
+  }
+  .card {
+    padding: 14px 16px 16px;
+  }
+  .icon-btn {
+    width: 38px;
+    height: 38px;
+  }
+}
