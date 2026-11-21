@@ -1,4 +1,18 @@
 /*
+ * On a big screen (a 4K monitor shows 3840 CSS pixels across) everything is scaled up, so it's the size it is on a laptop.
+ * `zoom` scales every length, so only viewport units need telling: use var(--vh) and var(--dvh) for the screen's height.
+ * The same block is in every qStored app's stylesheet. (The kiosk, on a TV, is scaled the same way.)
+ */
+:root { --z: 1; --vh: 100vh; --dvh: 100dvh; }
+@media (min-width: 2200px) { :root { --z: 1.25; } }
+@media (min-width: 2800px) { :root { --z: 1.5; } }
+@media (min-width: 3400px) { :root { --z: 1.75; } }
+@media (min-width: 3800px) { :root { --z: 2; } }
+@media (min-width: 4800px) { :root { --z: 2.5; } }
+html { zoom: var(--z); --vh: calc(100vh / var(--z)); --dvh: calc(100dvh / var(--z)); }
+@media print { html { zoom: 1; } }
+
+/*
   Pinewood Control's styles. The look it shares with no5tyle's other apps (Apple's system colours
   light and dark, the tint, rounding, the see-through bar, Liquid Glass and the font) comes from
   https://no5tyle.github.io/shared/no5tyle.css, linked in index.html before this file. Here: the
@@ -308,8 +322,8 @@ input[type="checkbox"] {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1000px) minmax(0, 1fr);
   align-content: start;
   row-gap: 1rem;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--vh);
+  min-height: var(--dvh);
   padding: 0 1.25rem 2rem;
 }
 
@@ -766,7 +780,7 @@ input[type="checkbox"] {
 }
 
 .auth-required-page {
-  min-height: calc(100vh - 2rem);
+  min-height: calc(var(--vh) - 2rem);
   align-content: center;
 }
 
@@ -898,8 +912,8 @@ label {
 }
 
 .kiosk-page {
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: var(--vh);
+  min-height: var(--dvh);
   background: var(--kiosk-bg);
   color: var(--kiosk-text);
   display: block;
@@ -1291,7 +1305,7 @@ label {
 }
 
 .kiosk-pair-only {
-  min-height: 100vh;
+  min-height: var(--vh);
   background: var(--kiosk-bg);
   display: grid;
   place-items: center;
@@ -2210,7 +2224,7 @@ label {
 }
 
 .modal-card {
-  max-height: calc(100dvh - 2rem);
+  max-height: calc(var(--dvh) - 2rem);
   overflow-y: auto;
 }
 
