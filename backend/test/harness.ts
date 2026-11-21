@@ -9,6 +9,8 @@ import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 import { io as connect, type Socket } from "socket.io-client";
 import { createApp } from "../src/app.js";
+import { closeIdle, IDLE_CLOSE_MS } from "../src/server/socketHandlers.js";
+export { IDLE_CLOSE_MS };
 import { FirebaseTokenAuth, type Auth } from "../src/server/auth.js";
 import { FirestoreDb, MemoryDb, type Db } from "../src/server/store/db.js";
 
@@ -23,7 +25,10 @@ export interface Harness {
 
 export interface Server {
   call(method: string, path: string, options?: { token?: string; kiosk?: string; body?: unknown }): Promise<{ status: number; body: any }>;
-  socket(): Socket;
+  /** A live connection as today's pages make one; `{ old: true }` as pages from before (no `v: 2`). */
+  socket(options?: { old?: boolean }): Socket;
+  /** Runs the sweep that closes connections with nothing to follow, as at `now`. */
+  closeIdle(now: number): number;
   stop(): Promise<void>;
 }
 
@@ -43,10 +48,13 @@ function starter(db: Db, auth: Auth) {
         const text = await res.text();
         return { status: res.status, body: text ? JSON.parse(text) : null };
       },
-      socket() {
-        const socket = connect(base, { transports: ["websocket"], forceNew: true });
+      socket({ old = false } = {}) {
+        const socket = connect(base, { transports: ["websocket"], forceNew: true, ...(old ? {} : { auth: { v: 2 } }) });
         sockets.push(socket);
         return socket;
+      },
+      closeIdle(now) {
+        return closeIdle(io, now);
       },
       async stop() {
         sockets.forEach((s) => s.disconnect());

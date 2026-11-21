@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { harnesses, type Server } from "./harness.js";
+import { harnesses, IDLE_CLOSE_MS, type Server } from "./harness.js";
 import { collections } from "../src/server/store/db.js";
 import type { EventDoc } from "../src/server/store/types.js";
 
@@ -246,6 +246,28 @@ for (const h of harnesses) {
       await api.call("POST", `/api/events/${event.id}/scouts`, { token: owner, body: { name: "Ada" } });
       expect((await next).scouts.map((s: any) => s.name)).toEqual(["Ada"]);
       expect(strangerUpdates).toEqual([]);
+    });
+
+    it("closes a page from before straight away, and any connection with nothing happening for 30 minutes", async () => {
+      const owner = await h.signIn();
+      const event = await makeEvent(owner);
+      // A page from before (no v: 2): closed by the server, and it doesn't come back
+      const old = api.socket({ old: true });
+      const reason = await new Promise<string>((resolve) => old.once("disconnect", resolve));
+      expect(reason).toBe("io server disconnect");
+      await new Promise((r) => setTimeout(r, 300));
+      expect(old.connected).toBe(false);
+      // Today's page, following the event: kept while things happen, closed after 30 quiet minutes
+      const watcher = api.socket();
+      const first = new Promise<any>((resolve) => watcher.once("event:update", resolve));
+      watcher.emit("event:subscribe", { eventId: event.id, authToken: owner });
+      await first;
+      expect(api.closeIdle(Date.now() + 10 * 60_000)).toBe(0);
+      await api.call("POST", `/api/events/${event.id}/scouts`, { token: owner, body: { name: "Ada" } });
+      expect(api.closeIdle(Date.now() + IDLE_CLOSE_MS - 60_000)).toBe(0);   // the change just now counts
+      const closed = new Promise<string>((resolve) => watcher.once("disconnect", resolve));
+      expect(api.closeIdle(Date.now() + IDLE_CLOSE_MS + 1000)).toBeGreaterThanOrEqual(1);   // this one, and any left by earlier tests
+      expect(await closed).toBe("io server disconnect");
     });
   });
 }

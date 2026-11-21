@@ -115,7 +115,14 @@ export async function loadEvent(db: Db, eventId: string): Promise<EventDoc> {
 }
 
 export function publish(io: Server, event: EventDoc) {
+  noteActivity(event.id);
   io.to(event.id).emit("event:update", serializeEvent(event));
+}
+
+/** When each event last changed, for closing connections that have nothing to follow (socketHandlers.ts). */
+export const lastActivity = new Map<string, number>();
+export function noteActivity(eventId: string) {
+  lastActivity.set(eventId, Date.now());
 }
 
 /**

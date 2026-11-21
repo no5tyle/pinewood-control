@@ -12,7 +12,8 @@ import { apiOrigin } from "./api";
  *    on overnight goes quiet: it asks for the event once a minute instead (a moment's work each), and as soon as
  *    something changes (a heat is run, a scout added) or someone touches it, the connection opens again.
  */
-export const socket = socketIOClient(apiOrigin || "/", { autoConnect: false });
+// `v: 2`: a page that keeps its connection short (the server closes older pages' connections straight away)
+export const socket = socketIOClient(apiOrigin || "/", { autoConnect: false, auth: { v: 2 } });
 
 const AWAY_AFTER_MS = 15 * 60_000;
 const QUIET_AFTER_MS = 30 * 60_000;
@@ -63,6 +64,11 @@ export function holdLiveConnection(): () => void {
 }
 
 for (const type of ["pointerdown", "keydown"]) document.addEventListener(type, () => { if (users > 0) noteActivity(); }, { passive: true, capture: true });
+
+// The server closes a connection with nothing happening (30 minutes): go quiet, looking once a minute until something does
+socket.on("disconnect", (reason) => {
+  if (reason === "io server disconnect" && users > 0) quiet = true;
+});
 
 // Out of sight for 15 minutes: close it; back in sight: open it again (the pages fetch what they missed on connect)
 document.addEventListener("visibilitychange", () => {
