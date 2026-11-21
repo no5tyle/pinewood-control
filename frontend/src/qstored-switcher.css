@@ -66,6 +66,10 @@ qs-app-switcher.qs-switch > :not(.qs-switch-btn, .qs-switch-menu, .qs-switch-bac
   width: var(--qs-switch-size);
   height: var(--qs-switch-size);
 }
+/* An app icon draws itself: a page's own `svg { stroke: currentColor }` mustn't outline it (a light edge, in dark mode) */
+qs-app-switcher svg:not(.qs-switch-chevron):not(.qs-switch-check) {
+  stroke: none;
+}
 .qs-switch-chevron {
   width: 12px;
   height: 12px;
